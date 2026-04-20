@@ -1,34 +1,26 @@
 import SwiftUI
 
-struct MealPlanView: View {
+struct MealPlanGoalHeader: View {
     let profile: UserProfileModel
-    @StateObject private var vm = MealPlanViewModel()
 
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    goalHeader
-                    mealGuideSection
-                    generateButton
-                    contentSection
-                }
-                .padding(.top)
-            }
-            .background(Color.gray.opacity(0.07))
-            .navigationTitle("Kế hoạch ăn")
-        }
+    private var nutrition: NutritionProfile {
+        NutritionProfile(profile: profile)
     }
 
-    // MARK: - Goal Header
-    var goalHeader: some View {
+    private var goalConfig: GoalConfig {
+        GoalConfig.config(for: profile.goal)
+    }
+
+    var body: some View {
         VStack(spacing: 6) {
             Text(goalConfig.icon + " " + goalConfig.title)
                 .font(.title2.bold())
-            Text("Mục tiêu: \(Int(profile.targetCalories)) kcal/ngày")
-                .font(.subheadline).foregroundStyle(.secondary)
+            Text("Mục tiêu: \(Int(nutrition.targetCalories)) kcal/ngày")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
             Text(goalConfig.subtitle)
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
@@ -38,11 +30,19 @@ struct MealPlanView: View {
         .cornerRadius(20)
         .padding(.horizontal)
     }
+}
 
-    // MARK: - Meal Guide
-    var mealGuideSection: some View {
+struct MealPlanGuideSection: View {
+    let goal: String
+
+    private var goalConfig: GoalConfig {
+        GoalConfig.config(for: goal)
+    }
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Gợi ý dinh dưỡng").font(.headline.bold())
+            Text("Gợi ý dinh dưỡng")
+                .font(.headline.bold())
                 .padding(.horizontal)
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -54,21 +54,23 @@ struct MealPlanView: View {
                 .padding(.horizontal)
             }
 
-            // Meal count info
             HStack(spacing: 8) {
-                Image(systemName: "clock").foregroundStyle(.secondary)
+                Image(systemName: "clock")
+                    .foregroundStyle(.secondary)
                 Text("Gợi ý \(goalConfig.mealCount) bữa/ngày")
-                    .font(.subheadline).foregroundStyle(.secondary)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
             .padding(.horizontal)
         }
     }
+}
 
-    // MARK: - Generate Button
-    var generateButton: some View {
-        Button {
-            vm.generatePlan(profile: profile)
-        } label: {
+struct MealPlanGenerateButton: View {
+    let onGenerate: () -> Void
+
+    var body: some View {
+        Button(action: onGenerate) {
             Label("Tạo kế hoạch hôm nay", systemImage: "sparkles")
                 .frame(maxWidth: .infinity)
                 .padding(16)
@@ -79,79 +81,104 @@ struct MealPlanView: View {
         }
         .padding(.horizontal)
     }
+}
 
-    // MARK: - Content
-    @ViewBuilder
-    var contentSection: some View {
-        switch vm.state {
+struct MealPlanContent: View {
+    let state: MealPlanState
+    let onRetry: () -> Void
+
+    var body: some View {
+        switch state {
         case .idle:
-            idleView
+            MealPlanIdleState()
         case .loading:
-            loadingView
+            MealPlanLoadingState()
         case .success(let plan):
-            mealPlanContent(plan)
-        case .error(let msg):
-            errorView(msg)
+            MealPlanResultSection(plan: plan)
+        case .error(let message):
+            MealPlanErrorState(message: message, onRetry: onRetry)
         }
     }
+}
 
-    var idleView: some View {
+private struct MealPlanIdleState: View {
+    var body: some View {
         VStack(spacing: 12) {
             Image(systemName: "fork.knife.circle")
                 .font(.system(size: 50))
                 .foregroundStyle(.black.opacity(0.15))
             Text("Nhấn tạo kế hoạch để nhận\ngợi ý bữa ăn phù hợp với mục tiêu")
-                .font(.subheadline).foregroundStyle(.secondary)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
         .padding(40)
     }
+}
 
-    var loadingView: some View {
+private struct MealPlanLoadingState: View {
+    var body: some View {
         VStack(spacing: 12) {
-            ProgressView().scaleEffect(1.3)
-            Text("Đang tạo kế hoạch...").font(.subheadline).foregroundStyle(.secondary)
+            ProgressView()
+                .scaleEffect(1.3)
+            Text("Đang tạo kế hoạch...")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
         .padding(40)
     }
+}
 
-    func errorView(_ msg: String) -> some View {
+private struct MealPlanErrorState: View {
+    let message: String
+    let onRetry: () -> Void
+
+    var body: some View {
         VStack(spacing: 10) {
-            Image(systemName: "exclamationmark.circle").font(.largeTitle).foregroundStyle(.red)
-            Text(msg).font(.subheadline).foregroundStyle(.secondary)
-            Button("Thử lại") { vm.generatePlan(profile: profile) }
-                .buttonStyle(.bordered).tint(.black)
+            Image(systemName: "exclamationmark.circle")
+                .font(.largeTitle)
+                .foregroundStyle(.red)
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Button("Thử lại", action: onRetry)
+                .buttonStyle(.bordered)
+                .tint(.black)
         }
         .padding(40)
     }
+}
 
-    // MARK: - Meal Plan Content
-    @ViewBuilder
-    func mealPlanContent(_ plan: DayMealPlan) -> some View {
+private struct MealPlanResultSection: View {
+    let plan: DayMealPlan
+
+    var body: some View {
         VStack(spacing: 16) {
-            // Nutrition summary
-            nutritionSummary(plan)
+            MealPlanNutritionSummary(plan: plan)
 
-            // Meals
-            ForEach(Array(plan.meals.enumerated()), id: \.0) { i, meal in
+            ForEach(Array(plan.meals.enumerated()), id: \.0) { index, meal in
                 MealCard(
-                    mealTime: mealTimeLabel(index: i, total: plan.meals.count),
-                    meal: meal,
-                    goal: plan.goal
+                    mealTime: MealTiming.label(for: index, total: plan.meals.count),
+                    meal: meal
                 )
                 .padding(.horizontal)
             }
         }
     }
+}
 
-    func nutritionSummary(_ plan: DayMealPlan) -> some View {
+private struct MealPlanNutritionSummary: View {
+    let plan: DayMealPlan
+
+    var body: some View {
         VStack(spacing: 12) {
-            Text("Tổng dinh dưỡng hôm nay").font(.subheadline.bold())
+            Text("Tổng dinh dưỡng hôm nay")
+                .font(.subheadline.bold())
             HStack(spacing: 0) {
-                NutritionStat(label: "Calo",     value: "\(Int(plan.totalCalories))", unit: "kcal", color: .black)
-                NutritionStat(label: "Protein",  value: "\(Int(plan.totalProtein))",  unit: "g",    color: .orange)
-                NutritionStat(label: "Carbs",    value: "\(Int(plan.totalCarbs))",    unit: "g",    color: .blue)
-                NutritionStat(label: "Chất béo", value: "\(Int(plan.totalFat))",      unit: "g",    color: .green)
+                NutritionStat(label: "Calo", value: "\(Int(plan.totalCalories))", unit: "kcal", color: .black)
+                NutritionStat(label: "Protein", value: "\(Int(plan.totalProtein))", unit: "g", color: .orange)
+                NutritionStat(label: "Carbs", value: "\(Int(plan.totalCarbs))", unit: "g", color: .blue)
+                NutritionStat(label: "Chất béo", value: "\(Int(plan.totalFat))", unit: "g", color: .green)
             }
         }
         .padding(16)
@@ -159,29 +186,8 @@ struct MealPlanView: View {
         .cornerRadius(20)
         .padding(.horizontal)
     }
-
-    // MARK: - Helpers
-    func mealTimeLabel(index: Int, total: Int) -> String {
-        if total <= 3 {
-            return ["☀️ Bữa sáng", "🌤️ Bữa trưa", "🌙 Bữa tối"][safe: index] ?? "🍽️ Bữa \(index + 1)"
-        } else {
-            // 4-5 bữa cho người tăng cơ
-            let labels = ["☀️ Bữa sáng", "🥗 Bữa phụ sáng", "🌤️ Bữa trưa", "💪 Bữa phụ chiều", "🌙 Bữa tối"]
-            return labels[safe: index] ?? "🍽️ Bữa \(index + 1)"
-        }
-    }
-
-    // MARK: - Goal Config
-    var goalConfig: GoalConfig {
-        switch profile.goal {
-        case "lose":     return GoalConfig.lose
-        case "gain":     return GoalConfig.gain
-        default:         return GoalConfig.maintain
-        }
-    }
 }
 
-// MARK: - Goal Config
 struct GoalConfig {
     let icon: String
     let title: String
@@ -189,15 +195,26 @@ struct GoalConfig {
     let mealCount: Int
     let nutrients: [NutrientGuide]
 
+    static func config(for goal: String) -> GoalConfig {
+        switch goal {
+        case "lose":
+            return .lose
+        case "gain":
+            return .gain
+        default:
+            return .maintain
+        }
+    }
+
     static let lose = GoalConfig(
         icon: "🏃",
         title: "Giảm cân",
         subtitle: "Ưu tiên rau xanh, đồ luộc\nHạn chế tinh bột và chất béo",
         mealCount: 3,
         nutrients: [
-            NutrientGuide(title: "Protein",   tip: "Thịt nạc, cá, trứng",     icon: "🥩", color: .orange),
-            NutrientGuide(title: "Chất xơ",   tip: "Rau xanh, salad",          icon: "🥗", color: .green),
-            NutrientGuide(title: "Carb thấp", tip: "Hạn chế cơm, bánh mì",     icon: "🌾", color: .brown),
+            NutrientGuide(title: "Protein", tip: "Thịt nạc, cá, trứng", icon: "🥩", color: .orange),
+            NutrientGuide(title: "Chất xơ", tip: "Rau xanh, salad", icon: "🥗", color: .green),
+            NutrientGuide(title: "Carb thấp", tip: "Hạn chế cơm, bánh mì", icon: "🌾", color: .brown),
         ]
     )
 
@@ -208,8 +225,8 @@ struct GoalConfig {
         mealCount: 5,
         nutrients: [
             NutrientGuide(title: "Protein cao", tip: "Thịt gà, cá, đậu, trứng", icon: "🥩", color: .orange),
-            NutrientGuide(title: "Carb tốt",    tip: "Cơm, khoai lang, yến mạch", icon: "🍚", color: .blue),
-            NutrientGuide(title: "Chất xơ",    tip: "Rau xanh, trái cây",       icon: "🥦", color: .green),
+            NutrientGuide(title: "Carb tốt", tip: "Cơm, khoai lang, yến mạch", icon: "🍚", color: .blue),
+            NutrientGuide(title: "Chất xơ", tip: "Rau xanh, trái cây", icon: "🥦", color: .green),
         ]
     )
 
@@ -219,14 +236,13 @@ struct GoalConfig {
         subtitle: "Cân bằng protein, carb và chất béo\nĂn đều đặn 3 bữa chính",
         mealCount: 3,
         nutrients: [
-            NutrientGuide(title: "Protein",  tip: "Thịt, cá, đậu",           icon: "🥩", color: .orange),
-            NutrientGuide(title: "Carb",     tip: "Cơm, bánh mì nguyên cám", icon: "🍚", color: .blue),
-            NutrientGuide(title: "Chất xơ", tip: "Rau củ, trái cây",         icon: "🥗", color: .green),
+            NutrientGuide(title: "Protein", tip: "Thịt, cá, đậu", icon: "🥩", color: .orange),
+            NutrientGuide(title: "Carb", tip: "Cơm, bánh mì nguyên cám", icon: "🍚", color: .blue),
+            NutrientGuide(title: "Chất xơ", tip: "Rau củ, trái cây", icon: "🥗", color: .green),
         ]
     )
 }
 
-// MARK: - Nutrient Guide
 struct NutrientGuide {
     let title: String
     let tip: String
@@ -234,7 +250,6 @@ struct NutrientGuide {
     let color: Color
 }
 
-// MARK: - Subviews
 struct NutrientGuideCard: View {
     let nutrient: NutrientGuide
 
@@ -258,11 +273,12 @@ struct NutrientGuideCard: View {
 struct MealCard: View {
     let mealTime: String
     let meal: MealPlanItem
-    let goal: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(mealTime).font(.caption.bold()).foregroundStyle(.secondary)
+            Text(mealTime)
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
 
             HStack(spacing: 14) {
                 AsyncImage(url: URL(string: meal.imageURL)) { image in
@@ -283,7 +299,8 @@ struct MealCard: View {
                         Label("\(meal.readyInMinutes) phút", systemImage: "clock")
                         Label("\(meal.servings) phần", systemImage: "person")
                     }
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
                 Spacer()
             }
@@ -318,8 +335,13 @@ struct NutritionStat: View {
     }
 }
 
-extension Array {
-    subscript(safe index: Int) -> Element? {
-        indices.contains(index) ? self[index] : nil
+enum MealTiming {
+    static func label(for index: Int, total: Int) -> String {
+        if total <= 3 {
+            return ["☀️ Bữa sáng", "🌤️ Bữa trưa", "🌙 Bữa tối"][safe: index] ?? "🍽️ Bữa \(index + 1)"
+        }
+
+        let labels = ["☀️ Bữa sáng", "🥗 Bữa phụ sáng", "🌤️ Bữa trưa", "💪 Bữa phụ chiều", "🌙 Bữa tối"]
+        return labels[safe: index] ?? "🍽️ Bữa \(index + 1)"
     }
 }

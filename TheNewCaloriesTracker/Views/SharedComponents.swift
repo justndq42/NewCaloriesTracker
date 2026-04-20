@@ -1,6 +1,6 @@
 import SwiftUI
 
-// Dùng trong Dashboard (nền tối)
+//(nền tối)
 struct MacroBadge: View {
     let label: String
     let value: String
@@ -18,8 +18,7 @@ struct MacroBadge: View {
         .cornerRadius(12)
     }
 }
-
-// Dùng trong FoodDetail (nền sáng)
+// nền sáng 
 struct MacroCard: View {
     let label: String
     let value: Double

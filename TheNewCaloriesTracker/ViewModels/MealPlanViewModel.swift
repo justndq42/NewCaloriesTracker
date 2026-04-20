@@ -15,8 +15,9 @@ class MealPlanViewModel: ObservableObject {
         Task { @MainActor in
             state = .loading
             do {
+                let nutrition = NutritionProfile(profile: profile)
                 let response = try await FoodAPIService.shared.generateMealPlan(
-                    targetCalories: Int(profile.targetCalories),
+                    targetCalories: Int(nutrition.targetCalories),
                     goal: profile.goal
                 )
                 state = .success(DayMealPlan(
@@ -26,7 +27,7 @@ class MealPlanViewModel: ObservableObject {
                     totalCarbs: response.nutrients.carbohydrates,
                     totalFat: response.nutrients.fat,
                     goal: profile.goal,                          
-                    targetCalories: Int(profile.targetCalories)
+                    targetCalories: Int(nutrition.targetCalories)
                 ))
             } catch {
                 state = .error("Không thể tạo kế hoạch. Thử lại sau.")

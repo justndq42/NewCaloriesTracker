@@ -1,0 +1,202 @@
+import SwiftUI
+import UIKit
+
+struct WaterIntakeCard: View {
+    let date: Date
+    @State private var waterStore = WaterIntakeStore.shared
+    @State private var totalWater = 0
+    @State private var amountScale: CGFloat = 1
+    @State private var iconScale: CGFloat = 1
+    @State private var buttonFlash = false
+    @State private var goalReachedFlash = false
+
+    private let defaultVolume = 500
+
+    private var selectedDay: Date {
+        Calendar.current.startOfDay(for: date)
+    }
+
+    private var fillProgress: CGFloat {
+        min(CGFloat(totalWater) / CGFloat(waterStore.dailyGoal), 1)
+    }
+
+    private var actionTint: Color {
+        totalWater == 0 ? .white.opacity(0.28) : .white.opacity(0.78)
+    }
+
+    private var canIncrement: Bool {
+        waterStore.canIncrement(on: selectedDay)
+    }
+
+    private var incrementTint: Color {
+        canIncrement ? .blue : Color(red: 0.15, green: 0.78, blue: 0.46)
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            bottleIcon
+
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Uống nước")
+                        .font(.headline.weight(.semibold))
+                        .foregroundColor(.white)
+                    Text("\(totalWater) ml")
+                        .font(.system(size: 23, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                        .scaleEffect(amountScale)
+                        .animation(.spring(response: 0.22, dampingFraction: 0.62), value: amountScale)
+                    Text("Mục tiêu \(waterStore.dailyGoal / 1_000)L/ngày")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+
+                Spacer(minLength: 8)
+
+                compactControlPill
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color(red: 0.1, green: 0.1, blue: 0.12))
+        )
+        .padding(.horizontal)
+        .onAppear(perform: reloadTotal)
+        .onChange(of: selectedDay) { _, _ in
+            reloadTotal()
+        }
+        .onChange(of: waterStore.dailyGoal) { _, _ in
+            reloadTotal()
+        }
+    }
+
+    private var bottleIcon: some View {
+        ZStack {
+            GeometryReader { geometry in
+                let iconSize = min(geometry.size.width, geometry.size.height)
+                ZStack(alignment: .bottom) {
+                    Image(systemName: "waterbottle.fill")
+                        .font(.system(size: iconSize, weight: .regular))
+                        .foregroundStyle(.white.opacity(0.08))
+
+                    Rectangle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.03, green: 0.33, blue: 0.87),
+                                    Color(red: 0.0, green: 0.16, blue: 0.55)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .frame(height: geometry.size.height * fillProgress)
+                        .mask(
+                            Image(systemName: "waterbottle.fill")
+                                .font(.system(size: iconSize, weight: .regular))
+                        )
+                        .animation(.spring(response: 0.3, dampingFraction: 0.82), value: fillProgress)
+
+                    Image(systemName: "waterbottle.fill")
+                        .font(.system(size: iconSize, weight: .regular))
+                        .foregroundStyle(.white.opacity(0.58))
+                }
+            }
+            .frame(width: 26, height: 42)
+        }
+        .scaleEffect(iconScale)
+        .animation(.spring(response: 0.22, dampingFraction: 0.62), value: iconScale)
+    }
+
+    private var compactControlPill: some View {
+        HStack(spacing: 8) {
+            Button(action: decrementWater) {
+                Image(systemName: "minus")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(actionTint)
+                    .frame(width: 22, height: 22)
+            }
+            .disabled(totalWater == 0)
+
+            Divider()
+                .frame(height: 16)
+                .overlay(Color.white.opacity(0.16))
+
+            Text("500 ml")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.72))
+                .frame(minWidth: 42)
+
+            Divider()
+                .frame(height: 16)
+                .overlay(Color.white.opacity(0.16))
+
+            Button(action: incrementWater) {
+                Image(systemName: "plus")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(incrementTint)
+                    .frame(width: 22, height: 22)
+            }
+            .disabled(!canIncrement)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .background(
+            Capsule()
+                .fill(
+                    goalReachedFlash
+                    ? Color(red: 0.15, green: 0.78, blue: 0.46).opacity(0.2)
+                    : buttonFlash
+                    ? Color.blue.opacity(0.18)
+                    : Color(red: 0.13, green: 0.1, blue: 0.18)
+                )
+        )
+        .animation(.easeInOut(duration: 0.18), value: buttonFlash)
+        .animation(.easeInOut(duration: 0.18), value: goalReachedFlash)
+    }
+
+    private func incrementWater() {
+        guard canIncrement else {
+            animateGoalReachedFeedback()
+            return
+        }
+        waterStore.increment(volume: defaultVolume, on: selectedDay)
+        totalWater = waterStore.total(for: selectedDay)
+        animateFeedback()
+    }
+
+    private func decrementWater() {
+        waterStore.decrement(volume: defaultVolume, on: selectedDay)
+        totalWater = waterStore.total(for: selectedDay)
+        animateFeedback()
+    }
+
+    private func reloadTotal() {
+        totalWater = waterStore.total(for: selectedDay)
+    }
+
+    private func animateFeedback() {
+        amountScale = 1.08
+        iconScale = 1.08
+        buttonFlash = true
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            amountScale = 1
+            iconScale = 1
+            buttonFlash = false
+        }
+    }
+
+    private func animateGoalReachedFeedback() {
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+        goalReachedFlash = true
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 220_000_000)
+            goalReachedFlash = false
+        }
+    }
+}

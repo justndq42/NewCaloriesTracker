@@ -13,21 +13,23 @@ class OnboardingViewModel {
     var currentStep: Int = 1
     
     var isStep1Valid: Bool { !name.trimmingCharacters(in: .whitespaces).isEmpty }
-    
-    var bmr: Double {
-        let base = 10 * weight + 6.25 * height - 5 * Double(age)
-        return gender == "male" ? base + 5 : base - 161
-    }
-    private let activityMultipliers = [1.2, 1.375, 1.55, 1.725, 1.9]
 
-    var tdee: Double { bmr * activityMultipliers[activityLevel] }
-    var targetCalories: Double {
-        switch goal {
-        case "lose":  return tdee - 500
-        case "gain":  return tdee + 500
-        default:      return tdee
-        }
+    private var nutritionProfile: NutritionProfile {
+        NutritionProfile(
+            input: NutritionProfileInput(
+                gender: gender,
+                age: age,
+                weight: weight,
+                height: height,
+                activityLevel: ActivityLevelOption(rawValue: activityLevel) ?? .sedentary,
+                goal: NutritionGoal(rawValue: goal) ?? .maintain
+            )
+        )
     }
+
+    var bmr: Double { nutritionProfile.bmr }
+    var tdee: Double { nutritionProfile.tdee }
+    var targetCalories: Double { nutritionProfile.targetCalories }
     
     func saveProfile(context: ModelContext) {
         let profile = UserProfileModel(

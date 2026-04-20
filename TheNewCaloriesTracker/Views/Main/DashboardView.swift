@@ -18,6 +18,7 @@ struct DashboardView: View {
     var totalProtein: Double { todayEntries.reduce(0) { $0 + $1.protein } }
     var totalCarbs: Double   { todayEntries.reduce(0) { $0 + $1.carbs } }
     var totalFat: Double     { todayEntries.reduce(0) { $0 + $1.fat } }
+    var nutrition: NutritionProfile { NutritionProfile(profile: profile) }
 
     var body: some View {
         NavigationStack {
@@ -32,7 +33,7 @@ struct DashboardView: View {
 
                     CalorieRingCard(
                         totalCal: totalCal,
-                        targetCalories: profile.targetCalories,
+                        targetCalories: nutrition.targetCalories,
                         totalProtein: totalProtein,
                         totalCarbs: totalCarbs,
                         totalFat: totalFat
@@ -42,15 +43,17 @@ struct DashboardView: View {
                         totalProtein: totalProtein,
                         totalCarbs: totalCarbs,
                         totalFat: totalFat,
-                        proteinTarget: profile.proteinGrams,
-                        carbsTarget: profile.carbsGrams,
-                        fatTarget: profile.fatGrams
+                        proteinTarget: nutrition.proteinGrams,
+                        carbsTarget: nutrition.carbsGrams,
+                        fatTarget: nutrition.fatGrams
                     )
+
+                    WaterIntakeCard(date: selectedDate)
 
                     DiaryLogView(
                         entries: todayEntries,
                         totalCal: totalCal,
-                        targetCalories: profile.targetCalories,
+                        targetCalories: nutrition.targetCalories,
                         onDelete: deleteEntry
                     )
                 }
