@@ -7,14 +7,14 @@ struct OnboardingView: View {
     
     var body: some View {
         ZStack {
-            Color(.systemGroupedBackground).ignoresSafeArea()
+            AppTheme.ColorToken.screenBackground.ignoresSafeArea()
             
             VStack(spacing: 0) {
                 // Progress bar
                 HStack(spacing: 8) {
                     ForEach(1...3, id: \.self) { step in
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(step <= vm.currentStep ? Color.black : Color.gray.opacity(0.2))
+                            .fill(step <= vm.currentStep ? AppTheme.ColorToken.primary : AppTheme.ColorToken.disabledFill)
                             .frame(height: 4)
                             .animation(.easeInOut, value: vm.currentStep)
                     }

@@ -29,7 +29,7 @@ struct WaterIntakeCard: View {
     }
 
     private var incrementTint: Color {
-        canIncrement ? .blue : Color(red: 0.15, green: 0.78, blue: 0.46)
+        canIncrement ? .white.opacity(0.9) : AppTheme.ColorToken.protein.opacity(0.86)
     }
 
     var body: some View {
@@ -56,10 +56,10 @@ struct WaterIntakeCard: View {
                 compactControlPill
             }
         }
-        .padding(20)
+        .padding(18)
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(red: 0.1, green: 0.1, blue: 0.12))
+            RoundedRectangle(cornerRadius: AppTheme.Radius.compactCard, style: .continuous)
+                .fill(AppTheme.ColorToken.primarySoft)
         )
         .padding(.horizontal)
         .onAppear(perform: reloadTotal)
@@ -146,10 +146,10 @@ struct WaterIntakeCard: View {
             Capsule()
                 .fill(
                     goalReachedFlash
-                    ? Color(red: 0.15, green: 0.78, blue: 0.46).opacity(0.2)
+                    ? AppTheme.ColorToken.protein.opacity(0.2)
                     : buttonFlash
-                    ? Color.blue.opacity(0.18)
-                    : Color(red: 0.13, green: 0.1, blue: 0.18)
+                    ? AppTheme.ColorToken.card.opacity(0.2)
+                    : AppTheme.ColorToken.card.opacity(0.12)
                 )
         )
         .animation(.easeInOut(duration: 0.18), value: buttonFlash)

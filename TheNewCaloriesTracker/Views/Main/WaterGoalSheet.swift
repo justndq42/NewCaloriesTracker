@@ -10,49 +10,55 @@ struct WaterGoalSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    Text("Dùng mốc gợi ý hoặc tự nhập mục tiêu riêng của bạn.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.section) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        AppIconBadge(systemName: "drop.circle.fill", color: AppTheme.ColorToken.water, size: 42)
+                        Text("Mục tiêu nước mỗi ngày")
+                            .font(.title3.bold())
+                        Text("Dùng mốc gợi ý hoặc tự nhập mục tiêu riêng của bạn.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(AppTheme.Spacing.card)
+                    .appCard(radius: AppTheme.Radius.card, shadow: true)
 
-                Section("Mục tiêu mỗi ngày") {
-                    ForEach(options, id: \.self) { goal in
-                        Button {
-                            selectedGoal = goal
-                            customGoalText = "\(goal)"
-                        } label: {
-                            HStack {
-                                Text(goalLabel(goal))
-                                    .foregroundStyle(.primary)
-                                Spacer()
-                                if resolvedGoal == goal {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(.blue)
-                                }
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Gợi ý nhanh")
+                            .font(.headline.bold())
+
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                            ForEach(options, id: \.self) { goal in
+                                goalOptionButton(goal)
                             }
                         }
                     }
-                }
 
-                Section("Tuỳ chỉnh") {
-                    TextField("Nhập mục tiêu nước (ml)", text: $customGoalText)
-                        .keyboardType(.numberPad)
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Tùy chỉnh")
+                            .font(.headline.bold())
 
-                    if let resolvedGoal {
-                        Text("Mục tiêu sẽ là \(goalLabel(resolvedGoal)) mỗi ngày")
+                        TextField("Nhập mục tiêu nước (ml)", text: $customGoalText)
+                            .keyboardType(.numberPad)
+                            .font(.headline)
+                            .padding(14)
+                            .background(AppTheme.ColorToken.mutedFill)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                        Text(goalHelperText)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("Nhập tối thiểu 1000 ml")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(resolvedGoal == nil ? AppTheme.ColorToken.calories : .secondary)
                     }
+                    .padding(AppTheme.Spacing.card)
+                    .appCard(radius: AppTheme.Radius.card, shadow: true)
                 }
+                .padding(AppTheme.Spacing.screen)
             }
+            .appScreenBackground()
             .navigationTitle("Mục tiêu nước")
             .navigationBarTitleDisplayMode(.inline)
+            .presentationBackground(AppTheme.ColorToken.screenBackground)
             .onAppear {
                 customGoalText = "\(selectedGoal)"
             }
@@ -71,6 +77,43 @@ struct WaterGoalSheet: View {
                 }
             }
         }
+    }
+
+    private var goalHelperText: String {
+        if let resolvedGoal {
+            return "Mục tiêu sẽ là \(goalLabel(resolvedGoal)) mỗi ngày"
+        }
+
+        return "Nhập tối thiểu 1000 ml"
+    }
+
+    private func goalOptionButton(_ goal: Int) -> some View {
+        let isSelected = resolvedGoal == goal
+
+        return Button {
+            selectedGoal = goal
+            customGoalText = "\(goal)"
+        } label: {
+            HStack {
+                Text(goalLabel(goal))
+                    .font(.subheadline.bold())
+                Spacer()
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.subheadline.bold())
+                }
+            }
+            .foregroundStyle(isSelected ? .white : AppTheme.ColorToken.primary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 13)
+            .background(isSelected ? AppTheme.ColorToken.primary : AppTheme.ColorToken.card)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.compactCard, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: AppTheme.Radius.compactCard, style: .continuous)
+                    .stroke(isSelected ? AppTheme.ColorToken.primary : AppTheme.ColorToken.divider, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private var resolvedGoal: Int? {

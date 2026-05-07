@@ -7,6 +7,6 @@ struct CaloriesTrackerApp: App {
         WindowGroup {
             RootView()
         }
-        .modelContainer(for: [UserProfileModel.self, DiaryEntryModel.self])
+        .modelContainer(for: [UserProfileModel.self, DiaryEntryModel.self, CustomFoodModel.self])
     }
 }

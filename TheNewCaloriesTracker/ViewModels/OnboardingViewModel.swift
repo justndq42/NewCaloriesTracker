@@ -20,9 +20,11 @@ class OnboardingViewModel {
                 gender: gender,
                 age: age,
                 weight: weight,
+                targetWeight: UserProfileModel.defaultTargetWeight(for: goal, currentWeight: weight),
                 height: height,
                 activityLevel: ActivityLevelOption(rawValue: activityLevel) ?? .sedentary,
-                goal: NutritionGoal(rawValue: goal) ?? .maintain
+                goal: NutritionGoal(rawValue: goal) ?? .maintain,
+                macroDistribution: nil
             )
         )
     }

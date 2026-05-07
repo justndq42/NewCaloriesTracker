@@ -13,10 +13,34 @@ struct SpoonacularResult: Codable, Identifiable {
 struct SpoonacularNutritionWrapper: Codable {
     let nutrients: [SpoonacularNutrient]
 
-    func value(for name: String) -> Double {
+    func value(for nutrientName: SpoonacularNutrientName) -> Double {
         nutrients.first {
-            $0.name.lowercased().contains(name.lowercased())
+            nutrientName.matches($0.name)
         }?.amount ?? 0
+    }
+}
+
+enum SpoonacularNutrientName {
+    case calories
+    case protein
+    case carbohydrates
+    case fat
+
+    func matches(_ apiName: String) -> Bool {
+        apiName.localizedCaseInsensitiveContains(apiLabel)
+    }
+
+    private var apiLabel: String {
+        switch self {
+        case .calories:
+            return "Calories"
+        case .protein:
+            return "Protein"
+        case .carbohydrates:
+            return "Carbohydrates"
+        case .fat:
+            return "Fat"
+        }
     }
 }
 

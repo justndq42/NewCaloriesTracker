@@ -1,15 +1,18 @@
 # macOS
 .DS_Store
+.AppleDouble
+.LSOverride
 
-# Xcode user data
-xcuserdata/
-*.xcuserstate
-*.xccheckout
-*.xcscmblueprint
-
-# Xcode build products
+# Xcode
 build/
 DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.moved-aside
+*.xccheckout
+*.xcscmblueprint
 
 # Swift Package Manager
 .build/
@@ -28,12 +31,37 @@ fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output/
 
-# Local environment and secrets
+# Environment secrets
 .env
 .env.*
 !.env.example
 
-# Temporary editor files
+# Backend
+backend/node_modules/
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Dependency lock/cache
+node_modules/
+.npm/
+.yarn/
+.pnpm-store/
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
 *.swp
 *.swo
-*~

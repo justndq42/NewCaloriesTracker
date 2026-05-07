@@ -18,14 +18,36 @@ enum NutritionGoal: String, CaseIterable, Identifiable {
         }
     }
 
-    var proteinMultiplier: Double {
+    var title: String {
         switch self {
         case .lose:
-            return 1.2
+            return "Giảm cân"
         case .maintain:
-            return 1.6
+            return "Duy trì"
         case .gain:
-            return 2.2
+            return "Tăng cân"
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .lose:
+            return "Giảm"
+        case .maintain:
+            return "Duy trì"
+        case .gain:
+            return "Tăng"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .lose:
+            return "arrow.down.forward.circle.fill"
+        case .maintain:
+            return "equal.circle.fill"
+        case .gain:
+            return "arrow.up.forward.circle.fill"
         }
     }
 }
@@ -114,18 +136,18 @@ enum ActivityLevelOption: Int, CaseIterable, Identifiable {
         }
     }
 
-    var icon: String {
+    var symbolName: String {
         switch self {
         case .sedentary:
-            return "🪑"
+            return "chair.fill"
         case .light:
-            return "🚶"
+            return "figure.walk"
         case .moderate:
-            return "🏃"
+            return "figure.run"
         case .active:
-            return "💪"
+            return "figure.highintensity.intervaltraining"
         case .athlete:
-            return "🏋️"
+            return "figure.strengthtraining.traditional"
         }
     }
 }
@@ -134,45 +156,41 @@ struct NutritionProfileInput {
     let gender: String
     let age: Int
     let weight: Double
+    let targetWeight: Double
     let height: Double
     let activityLevel: ActivityLevelOption
     let goal: NutritionGoal
+    let macroDistribution: MacroDistribution?
 }
 
 struct NutritionProfile {
     let bmr: Double
     let tdee: Double
     let targetCalories: Double
+    let targetWeight: Double
+    let macroDistribution: MacroDistribution
     let proteinGrams: Double
     let fatGrams: Double
     let carbsGrams: Double
-    let highProteinGrams: Double
-    let mediumProteinGrams: Double
-    let lowProteinGrams: Double
 
     init(input: NutritionProfileInput) {
         let base = 10 * input.weight + 6.25 * input.height - 5 * Double(input.age)
         let bmr = input.gender == "male" ? base + 5 : base - 161
         let tdee = bmr * input.activityLevel.multiplier
         let targetCalories = tdee + input.goal.calorieAdjustment
-        let fatGrams = (tdee * 0.15) / 9
-        let highProteinGrams = input.weight * 2.2
-        let mediumProteinGrams = input.weight * 1.6
-        let lowProteinGrams = input.weight * 1.2
-        let proteinGrams = input.weight * input.goal.proteinMultiplier
-        let proteinCalories = proteinGrams * 4
-        let fatCalories = fatGrams * 9
-        let carbsGrams = max(0, (targetCalories - proteinCalories - fatCalories) / 4)
+        let defaultDistribution = MacroDistribution.default(for: input.goal)
+        let macroDistribution = (input.macroDistribution ?? defaultDistribution)
+            .validated(fallback: defaultDistribution)
+        let macroTargets = macroDistribution.targets(for: targetCalories)
 
         self.bmr = bmr
         self.tdee = tdee
         self.targetCalories = targetCalories
-        self.proteinGrams = proteinGrams
-        self.fatGrams = fatGrams
-        self.carbsGrams = carbsGrams
-        self.highProteinGrams = highProteinGrams
-        self.mediumProteinGrams = mediumProteinGrams
-        self.lowProteinGrams = lowProteinGrams
+        self.targetWeight = input.targetWeight
+        self.macroDistribution = macroDistribution
+        self.proteinGrams = macroTargets.proteinGrams
+        self.fatGrams = macroTargets.fatGrams
+        self.carbsGrams = macroTargets.carbsGrams
     }
 
     init(profile: UserProfileModel) {
@@ -181,16 +199,12 @@ struct NutritionProfile {
                 gender: profile.gender,
                 age: profile.age,
                 weight: profile.weight,
+                targetWeight: profile.targetWeight,
                 height: profile.height,
                 activityLevel: ActivityLevelOption(rawValue: profile.activityLevel) ?? .sedentary,
-                goal: NutritionGoal(rawValue: profile.goal) ?? .maintain
+                goal: profile.nutritionGoal,
+                macroDistribution: profile.macroDistribution
             )
         )
-    }
-
-    func carbs(forProteinGrams proteinGrams: Double) -> Double {
-        let proteinCalories = proteinGrams * 4
-        let fatCalories = fatGrams * 9
-        return max(0, (targetCalories - proteinCalories - fatCalories) / 4)
     }
 }

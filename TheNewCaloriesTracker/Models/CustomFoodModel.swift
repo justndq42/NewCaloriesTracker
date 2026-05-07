@@ -11,6 +11,17 @@ final class CustomFoodModel {
     var unit: String
     var createdAt: Date
 
+    var foodItem: FoodItem {
+        FoodItem(
+            name: name,
+            calories: calories,
+            protein: protein,
+            carbs: carbs,
+            fat: fat,
+            unit: unit
+        )
+    }
+
     init(
         name: String,
         calories: Int,

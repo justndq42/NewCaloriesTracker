@@ -24,14 +24,14 @@ struct DiaryView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: AppTheme.Spacing.section) {
                     dateNavigator
                         .padding(.horizontal)
 
                     summaryCard
                         .padding(.horizontal)
 
-                    LazyVStack(spacing: 12) {
+                    LazyVStack(spacing: 10) {
                         ForEach(timelineHours, id: \.self) { hour in
                             DiaryHourSection(
                                 hour: hour,
@@ -47,8 +47,10 @@ struct DiaryView: View {
                     }
                     .padding(.horizontal)
                 }
+                .padding(.top, 4)
+                .padding(.bottom, 92)
             }
-            .background(Color.gray.opacity(0.07))
+            .appScreenBackground()
             .navigationTitle("Nhật ký")
             .sheet(item: $activeSlot) { slot in
                 FoodSearchView(entryDate: slot.date)
@@ -63,7 +65,7 @@ struct DiaryView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.primary)
                     .frame(width: 34, height: 34)
-                    .background(Color.white)
+                    .background(AppTheme.ColorToken.card)
                     .clipShape(Circle())
             }
 
@@ -88,7 +90,7 @@ struct DiaryView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.primary)
                     .frame(width: 34, height: 34)
-                    .background(Color.white)
+                    .background(AppTheme.ColorToken.card)
                     .clipShape(Circle())
             }
         }
@@ -126,8 +128,7 @@ struct DiaryView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 12)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .appCard(radius: AppTheme.Radius.card)
     }
 
     private func diaryMetric(
@@ -190,15 +191,7 @@ struct DiaryView: View {
     }
 
     private var displaySubtitle: String? {
-        guard
-            !calendar.isDateInToday(selectedDate),
-            !calendar.isDateInYesterday(selectedDate),
-            !calendar.isDateInTomorrow(selectedDate)
-        else {
-            return selectedDate.formatted(.dateTime.weekday(.wide))
-        }
-
-        return selectedDate.formatted(.dateTime.weekday(.wide))
+        selectedDate.formatted(.dateTime.weekday(.wide))
     }
 
     private func goToPreviousDay() {
@@ -261,7 +254,7 @@ private struct DiaryHourSection: View {
                     Image(systemName: "plus")
                         .font(.system(size: 11, weight: .bold))
                         .frame(width: 24, height: 24)
-                        .background(Color.black)
+                        .background(AppTheme.ColorToken.primary)
                         .foregroundStyle(.white)
                         .clipShape(Circle())
                 }
@@ -304,9 +297,8 @@ private struct DiaryHourSection: View {
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .padding(.vertical, 9)
+        .appCard(radius: AppTheme.Radius.compactCard)
     }
 
     private var hourLabel: String {

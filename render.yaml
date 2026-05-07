@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: new-calories-food-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: SPOONACULAR_API_KEY
+        sync: false

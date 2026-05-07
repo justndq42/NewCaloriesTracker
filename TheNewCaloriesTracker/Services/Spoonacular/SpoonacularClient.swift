@@ -1,8 +1,17 @@
 import Foundation
 
 final class SpoonacularClient {
-    private let apiKey = "40fb1118a4714ca296a1c7b42a6f7cfb"
     private let baseURL = "https://api.spoonacular.com"
+
+    private var apiKey: String? {
+        guard let raw = Bundle.main.object(forInfoDictionaryKey: "SPOONACULAR_API_KEY") as? String,
+              !raw.isEmpty
+        else {
+            return nil
+        }
+
+        return raw
+    }
 
     private lazy var session: URLSession = {
         let config = URLSessionConfiguration.default
@@ -38,27 +47,9 @@ final class SpoonacularClient {
         return try await fetchNutrition(for: Array(allIDs.prefix(15)))
     }
 
-    func generateMealPlan(
-        targetCalories: Int,
-        goal: String,
-        diet: String = ""
-    ) async throws -> MealPlanResponse {
-        var components = URLComponents(string: "\(baseURL)/mealplanner/generate")!
-        var queryItems: [URLQueryItem] = [
-            URLQueryItem(name: "apiKey", value: apiKey),
-            URLQueryItem(name: "timeFrame", value: "day"),
-            URLQueryItem(name: "targetCalories", value: "\(targetCalories)"),
-        ]
-
-        if !diet.isEmpty {
-            queryItems.append(URLQueryItem(name: "diet", value: diet))
-        }
-
-        components.queryItems = queryItems
-        return try await request(components: components, as: MealPlanResponse.self)
-    }
-
     private func searchRecipeIDs(query: String, number: Int) async throws -> [Int] {
+        guard let apiKey else { return [] }
+
         var components = URLComponents(string: "\(baseURL)/recipes/complexSearch")!
         components.queryItems = [
             URLQueryItem(name: "apiKey", value: apiKey),
@@ -83,15 +74,15 @@ final class SpoonacularClient {
         let recipes = try await request(components: components, as: [SpoonacularBulkInfo].self)
         return recipes.compactMap { recipe in
             guard let nutrition = recipe.nutrition else { return nil }
-            let calories = nutrition.value(for: "Calories")
+            let calories = nutrition.value(for: .calories)
             guard calories > 0 else { return nil }
 
             return FoodItem(
                 name: recipe.title,
                 calories: Int(calories),
-                protein: nutrition.value(for: "Protein"),
-                carbs: nutrition.value(for: "Carbohydrates"),
-                fat: nutrition.value(for: "Fat"),
+                protein: nutrition.value(for: .protein),
+                carbs: nutrition.value(for: .carbohydrates),
+                fat: nutrition.value(for: .fat),
                 unit: "1 serving"
             )
         }

@@ -15,7 +15,7 @@ struct MacroProgressItem: View {
     var isOverTarget: Bool { current > target }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 6) {
                 Image(systemName: symbolName)
                     .font(.caption.bold())
@@ -61,7 +61,7 @@ struct MacroProgressItem: View {
             // Value
             HStack(alignment: .lastTextBaseline, spacing: 2) {
                 Text("\(Int(current))")
-                    .font(.title3.bold())
+                    .font(.headline.bold())
                     .foregroundColor(isOverTarget ? .red : .white)
                 Text("/ \(Int(target))g")
                     .font(.caption)

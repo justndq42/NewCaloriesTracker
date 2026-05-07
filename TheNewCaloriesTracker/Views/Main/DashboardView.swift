@@ -23,7 +23,7 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: AppTheme.Spacing.section) {
                     headerSection
                         .opacity(showNavTitle ? 0 : 1)
                         .animation(.easeInOut(duration: 0.2), value: showNavTitle)
@@ -57,7 +57,8 @@ struct DashboardView: View {
                         onDelete: deleteEntry
                     )
                 }
-                .padding(.top, 8)
+                .padding(.top, 6)
+                .padding(.bottom, 92)
                 .background(
                     GeometryReader { geo in
                         Color.clear.preference(
@@ -71,7 +72,7 @@ struct DashboardView: View {
             .onPreferenceChange(ScrollOffsetKey.self) { value in
                 showNavTitle = value < -10
             }
-            .background(Color.gray.opacity(0.07))
+            .appScreenBackground()
             .navigationTitle("Tổng Quan")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -98,7 +99,7 @@ struct DashboardView: View {
             Spacer()
         }
         .padding(.horizontal)
-        .padding(.top, -40)
+        .padding(.top, -36)
     }
     // MARK: - Delete
     private func deleteEntry(_ entry: DiaryEntryModel) {

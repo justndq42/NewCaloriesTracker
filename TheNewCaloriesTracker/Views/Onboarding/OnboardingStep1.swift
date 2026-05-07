@@ -8,7 +8,7 @@ struct OnboardingStep1: View {
             VStack(alignment: .leading, spacing: 28) {
                 // Header
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Xin chào! 👋").font(.largeTitle.bold())
+                    Text("Xin chào!").font(.largeTitle.bold())
                     Text("Hãy cho chúng tôi biết một chút về bạn")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
@@ -18,18 +18,18 @@ struct OnboardingStep1: View {
                     Label("Tên của bạn", systemImage: "person").font(.subheadline.bold())
                     TextField("Nhập tên...", text: $vm.name)
                         .padding(14)
-                        .background(Color.white)
-                        .cornerRadius(14)
+                        .background(AppTheme.ColorToken.card)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: 14)
-                            .stroke(Color.gray.opacity(0.2), lineWidth: 1))
+                            .stroke(AppTheme.ColorToken.divider, lineWidth: 1))
                 }
                 
                 // Gender
                 VStack(alignment: .leading, spacing: 10) {
                     Label("Giới tính", systemImage: "person.2").font(.subheadline.bold())
                     HStack(spacing: 12) {
-                        GenderButton(title: "👨 Nam", value: "male",   selected: $vm.gender)
-                        GenderButton(title: "👩 Nữ", value: "female", selected: $vm.gender)
+                        GenderButton(title: "Nam", systemName: "person.fill", value: "male", selected: $vm.gender)
+                        GenderButton(title: "Nữ", systemName: "person.fill", value: "female", selected: $vm.gender)
                     }
                 }
                 
@@ -59,9 +59,12 @@ struct OnboardingStep1: View {
                     withAnimation { vm.currentStep = 2 }
                 } label: {
                     Text("Tiếp theo →")
-                        .frame(maxWidth: .infinity).padding(16)
-                        .background(vm.isStep1Valid ? Color.black : Color.gray.opacity(0.3))
-                        .foregroundColor(.white).cornerRadius(16).font(.headline)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(vm.isStep1Valid ? AppTheme.ColorToken.primary : AppTheme.ColorToken.disabledFill)
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.compactCard, style: .continuous))
                 }
                 .disabled(!vm.isStep1Valid)
             }
@@ -72,17 +75,24 @@ struct OnboardingStep1: View {
 
 struct GenderButton: View {
     let title: String
+    let systemName: String
     let value: String
     @Binding var selected: String
     
     var body: some View {
         Button { selected = value } label: {
-            Text(title).frame(maxWidth: .infinity).padding(14)
-                .background(selected == value ? Color.black : Color.white)
-                .foregroundColor(selected == value ? .white : .primary)
-                .cornerRadius(14).font(.subheadline.bold())
-                .overlay(RoundedRectangle(cornerRadius: 14)
-                    .stroke(selected == value ? Color.black : Color.gray.opacity(0.2), lineWidth: 1.5))
+            HStack(spacing: 6) {
+                Image(systemName: systemName)
+                Text(title)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(14)
+            .background(selected == value ? AppTheme.ColorToken.primary : AppTheme.ColorToken.card)
+            .foregroundStyle(selected == value ? .white : AppTheme.ColorToken.primary)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .font(.subheadline.bold())
+            .overlay(RoundedRectangle(cornerRadius: 14)
+                .stroke(selected == value ? AppTheme.ColorToken.primary : AppTheme.ColorToken.divider, lineWidth: 1.5))
         }
     }
 }
@@ -98,10 +108,12 @@ struct SliderCard: View {
                 Spacer()
                 Text(display).font(.title3.bold())
             }
-            Slider(value: $value, in: range).tint(.black)
+            Slider(value: $value, in: range).tint(AppTheme.ColorToken.primary)
         }
-        .padding(16).background(Color.white).cornerRadius(14)
+        .padding(16)
+        .background(AppTheme.ColorToken.card)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14)
-            .stroke(Color.gray.opacity(0.2), lineWidth: 1))
+            .stroke(AppTheme.ColorToken.divider, lineWidth: 1))
     }
 }

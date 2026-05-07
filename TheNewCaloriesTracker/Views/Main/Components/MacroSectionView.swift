@@ -9,7 +9,7 @@ struct MacroSectionView: View {
     let fatTarget: Double
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             MacroProgressItem(
                 symbolName: "bolt.fill",
                 label: "Chất đạm",
@@ -32,10 +32,10 @@ struct MacroSectionView: View {
                 color: .yellow
             )
         }
-        .padding(20)
+        .padding(18)
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(red: 0.1, green: 0.1, blue: 0.12))
+            RoundedRectangle(cornerRadius: AppTheme.Radius.compactCard, style: .continuous)
+                .fill(AppTheme.ColorToken.primarySoft)
         )
         .padding(.horizontal)
     }

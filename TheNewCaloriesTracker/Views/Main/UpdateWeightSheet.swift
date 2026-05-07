@@ -33,71 +33,83 @@ struct UpdateWeightSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                Spacer(minLength: 8)
+            ScrollView {
+                VStack(spacing: AppTheme.Spacing.section) {
+                    VStack(spacing: 8) {
+                        AppIconBadge(systemName: "scalemass.fill", color: AppTheme.ColorToken.primary, size: 42)
+                        Text("Cân nặng hiện tại")
+                            .font(.title3.bold())
+                        Text("Dùng +/- để chỉnh nhanh 0.1kg hoặc chạm vào số cân để nhập.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(AppTheme.Spacing.card)
+                    .appCard(radius: AppTheme.Radius.card, shadow: true)
 
-                Text("Cân nặng hiện tại")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    HStack(spacing: 18) {
+                        adjustmentButton(symbol: "minus", action: decrementWeight)
 
-                HStack(spacing: 18) {
-                    adjustmentButton(symbol: "minus", action: decrementWeight)
+                        VStack(spacing: 10) {
+                            Button(action: beginManualEditing) {
+                                VStack(spacing: 4) {
+                                    Text(weightDisplay)
+                                        .font(.system(size: 46, weight: .bold, design: .rounded))
+                                        .foregroundStyle(AppTheme.ColorToken.primary)
+                                        .contentTransition(.numericText())
+                                    Text("kg")
+                                        .font(.headline)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.plain)
 
-                    VStack(spacing: 10) {
-                        Button(action: beginManualEditing) {
-                            VStack(spacing: 4) {
-                                Text(weightDisplay)
-                                    .font(.system(size: 42, weight: .bold, design: .rounded))
-                                    .foregroundStyle(.primary)
-                                Text("kg")
+                            if isEditingManually {
+                                TextField("Nhập cân nặng", text: $weightText)
+                                    .keyboardType(.decimalPad)
+                                    .multilineTextAlignment(.center)
                                     .font(.headline)
+                                    .focused($isWeightFieldFocused)
+                                    .padding(12)
+                                    .frame(maxWidth: 180)
+                                    .background(AppTheme.ColorToken.mutedFill)
+                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                    .onChange(of: weightText) { _, newValue in
+                                        syncDraftWeight(from: newValue)
+                                    }
+                            } else {
+                                Text("Chạm để nhập trực tiếp")
+                                    .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
-                            .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.plain)
 
-                        if isEditingManually {
-                            TextField("Nhập cân nặng", text: $weightText)
-                                .keyboardType(.decimalPad)
-                                .textFieldStyle(.roundedBorder)
-                                .multilineTextAlignment(.center)
-                                .font(.headline)
-                                .focused($isWeightFieldFocused)
-                                .frame(maxWidth: 180)
-                                .onChange(of: weightText) { _, newValue in
-                                    syncDraftWeight(from: newValue)
-                                }
-                        } else {
-                            Text("Chạm vào số cân để nhập trực tiếp")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                        adjustmentButton(symbol: "plus", action: incrementWeight)
                     }
+                    .padding(AppTheme.Spacing.card)
+                    .appCard(radius: AppTheme.Radius.card, shadow: true)
 
-                    adjustmentButton(symbol: "plus", action: incrementWeight)
+                    VStack(spacing: 6) {
+                        Text("Ngày cập nhật")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(weightUpdatedLabel)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppTheme.ColorToken.primary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(AppTheme.ColorToken.mutedFill)
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.compactCard, style: .continuous))
                 }
-                .padding(.horizontal, 20)
-
-                VStack(spacing: 6) {
-                    Text("Ngày cập nhật")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(weightUpdatedLabel)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(Color.gray.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 18))
-                .padding(.horizontal, 20)
-
-                Spacer()
+                .padding(AppTheme.Spacing.screen)
             }
-            .padding(.top, 20)
+            .appScreenBackground()
             .navigationTitle("Cập nhật cân nặng")
             .navigationBarTitleDisplayMode(.inline)
+            .presentationBackground(AppTheme.ColorToken.screenBackground)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Đóng") { dismiss() }
@@ -119,9 +131,9 @@ struct UpdateWeightSheet: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(.primary)
+                .foregroundStyle(AppTheme.ColorToken.primary)
                 .frame(width: 48, height: 48)
-                .background(Color.gray.opacity(0.1))
+                .background(AppTheme.ColorToken.mutedFill)
                 .clipShape(Circle())
         }
         .buttonStyle(.plain)
@@ -145,8 +157,7 @@ struct UpdateWeightSheet: View {
     }
 
     private func syncDraftWeight(from text: String) {
-        let normalizedText = text.replacingOccurrences(of: ",", with: ".")
-        guard let parsedWeight = Double(normalizedText) else { return }
+        guard let parsedWeight = DecimalTextParser.double(from: text) else { return }
         draftWeight = normalizedWeight(parsedWeight)
     }
 

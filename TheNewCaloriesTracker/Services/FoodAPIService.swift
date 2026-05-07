@@ -16,16 +16,4 @@ final class FoodAPIService {
     func loadRecommended() async throws -> [FoodItem] {
         try await client.loadRecommended()
     }
-
-    func generateMealPlan(
-        targetCalories: Int,
-        goal: String,
-        diet: String = ""
-    ) async throws -> MealPlanResponse {
-        try await client.generateMealPlan(
-            targetCalories: targetCalories,
-            goal: goal,
-            diet: diet
-        )
-    }
 }

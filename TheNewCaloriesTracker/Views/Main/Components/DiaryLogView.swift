@@ -18,8 +18,7 @@ struct DiaryLogView: View {
             Divider()
             content
         }
-        .background(Color.white)
-        .cornerRadius(20)
+        .appCard(radius: AppTheme.Radius.card)
         .padding(.horizontal)
     }
 
@@ -40,7 +39,7 @@ struct DiaryLogView: View {
             Spacer()
             miniRing
         }
-        .padding(16)
+        .padding(15)
     }
 
     // MARK: - Mini Ring
@@ -93,7 +92,7 @@ struct DiaryLogView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(30)
+        .padding(24)
     }
 }
 
@@ -140,9 +139,9 @@ private struct MealGroupView: View {
                     .font(.caption.bold())
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(Color.gray.opacity(0.04))
+            .padding(.horizontal, 15)
+            .padding(.vertical, 9)
+            .background(AppTheme.ColorToken.mutedFill)
 
             // Entries
             ForEach(entries) { entry in
@@ -158,8 +157,8 @@ private struct MealGroupView: View {
                     Text("\(entry.calories) kcal")
                         .font(.subheadline.bold())
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .padding(.horizontal, 15)
+                .padding(.vertical, 10)
                 .swipeActions {
                     Button(role: .destructive) {
                         onDelete(entry)

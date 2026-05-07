@@ -67,7 +67,7 @@ struct MainTabView: View {
             .offset(y: -10)
 
             tabButton(tab: .mealPlan, title: "Meal Plan", systemImage: "calendar.badge.plus")
-            tabButton(tab: .more, title: "More", systemImage: "ellipsis.circle.fill")
+            tabButton(tab: .more, title: "Tài khoản", systemImage: "person.crop.circle.fill")
         }
         .padding(.horizontal, 16)
         .padding(.top, 6)

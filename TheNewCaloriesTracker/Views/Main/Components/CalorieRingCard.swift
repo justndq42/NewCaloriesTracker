@@ -14,14 +14,14 @@ struct CalorieRingCard: View {
     var isOver: Bool { totalCal > Int(targetCalories) }
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 18) {
             ring
             stats
         }
-        .padding(24)
+        .padding(22)
         .background(
-            RoundedRectangle(cornerRadius: 24)
-                .fill(Color.black.gradient)
+            RoundedRectangle(cornerRadius: AppTheme.Radius.card, style: .continuous)
+                .fill(AppTheme.ColorToken.primarySoft.gradient)
         )
         .padding(.horizontal)
     }
@@ -30,7 +30,7 @@ struct CalorieRingCard: View {
         ZStack {
             Circle()
                 .stroke(Color.white.opacity(0.1), lineWidth: 20)
-                .frame(width: 180, height: 180)
+                .frame(width: 168, height: 168)
 
             Circle()
                 .trim(from: 0, to: progress)
@@ -40,20 +40,20 @@ struct CalorieRingCard: View {
                     : AngularGradient(colors: [.orange, .yellow, .orange], center: .center),
                     style: StrokeStyle(lineWidth: 20, lineCap: .round)
                 )
-                .frame(width: 180, height: 180)
+                .frame(width: 168, height: 168)
                 .rotationEffect(.degrees(-90))
                 .animation(.easeInOut(duration: 0.8), value: progress)
 
             VStack(spacing: 4) {
                 Text("\(isOver ? abs(remaining) : totalCal)")
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                    .font(.system(size: 40, weight: .bold, design: .rounded))
                     .foregroundColor(isOver ? .red : .white)
                 Text(isOver ? "kcal dư thừa" : "kcal")
                     .font(.subheadline)
                     .foregroundColor(isOver ? .red.opacity(0.7) : .white.opacity(0.6))
             }
         }
-        .padding(.top, 8)
+        .padding(.top, 4)
     }
 
     private var stats: some View {
