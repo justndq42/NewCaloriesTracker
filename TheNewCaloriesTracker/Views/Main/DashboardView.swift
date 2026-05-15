@@ -3,15 +3,14 @@ import SwiftData
 
 struct DashboardView: View {
     let profile: UserProfileModel
-    @Environment(AppViewModel.self) private var vm
     @Environment(\.modelContext) private var context
+    @Environment(AuthSessionStore.self) private var authStore
     @Query private var allEntries: [DiaryEntryModel]
     @State private var selectedDate: Date = Date()
-    @State private var showNavTitle = false
 
     var todayEntries: [DiaryEntryModel] {
         allEntries.filter {
-            Calendar.current.isDate($0.date, inSameDayAs: selectedDate)
+            $0.userID == profile.userID && Calendar.current.isDate($0.date, inSameDayAs: selectedDate)
         }
     }
     var totalCal: Int        { todayEntries.reduce(0) { $0 + $1.calories } }
@@ -19,14 +18,18 @@ struct DashboardView: View {
     var totalCarbs: Double   { todayEntries.reduce(0) { $0 + $1.carbs } }
     var totalFat: Double     { todayEntries.reduce(0) { $0 + $1.fat } }
     var nutrition: NutritionProfile { NutritionProfile(profile: profile) }
+    private static let vietnameseDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "EEEE, 'ngày' d 'tháng' M 'năm' yyyy"
+        return formatter
+    }()
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: AppTheme.Spacing.section) {
                     headerSection
-                        .opacity(showNavTitle ? 0 : 1)
-                        .animation(.easeInOut(duration: 0.2), value: showNavTitle)
 
                     WeekCalendarView(selectedDate: $selectedDate)
                         .padding(.horizontal)
@@ -59,58 +62,40 @@ struct DashboardView: View {
                 }
                 .padding(.top, 6)
                 .padding(.bottom, 92)
-                .background(
-                    GeometryReader { geo in
-                        Color.clear.preference(
-                            key: ScrollOffsetKey.self,
-                            value: geo.frame(in: .named("scroll")).minY
-                        )
-                    }
-                )
-            }
-            .coordinateSpace(name: "scroll")
-            .onPreferenceChange(ScrollOffsetKey.self) { value in
-                showNavTitle = value < -10
             }
             .appScreenBackground()
-            .navigationTitle("Tổng Quan")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text("Tổng Quan")
-                        .font(.headline.bold())
-                        .opacity(showNavTitle ? 1 : 0)
-                        .animation(.easeInOut(duration: 0.2), value: showNavTitle)
-                }
-            }
+            .navigationTitle("Tổng quan")
         }
     }
 
     // MARK: - Header
     private var headerSection: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(selectedDate.formatted(.dateTime.weekday(.wide).day().month()))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Text("Tổng Quan")
-                    .font(.largeTitle.bold())
-            }
+            Text(Self.vietnameseDateFormatter.string(from: selectedDate).capitalized)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
             Spacer()
         }
         .padding(.horizontal)
-        .padding(.top, -36)
     }
     // MARK: - Delete
     private func deleteEntry(_ entry: DiaryEntryModel) {
-        vm.removeEntry(entry, context: context)
+        Task {
+            await deleteEntryFromAccount(entry)
+        }
     }
-}
 
-// MARK: - Scroll Offset Key
-struct ScrollOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
+    private func deleteEntryFromAccount(_ entry: DiaryEntryModel) async {
+        guard let userID = profile.userID else {
+            return
+        }
+
+        let accessToken = await authStore.accessToken()
+        try? await DiaryEntrySyncService.shared.delete(
+            entry: entry,
+            userID: userID,
+            context: context,
+            accessToken: accessToken
+        )
     }
 }

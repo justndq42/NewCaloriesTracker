@@ -62,17 +62,28 @@ export function requiredISODate(value, fieldName) {
     return cleaned;
 }
 
-export function handleRouteError(res, error, label) {
-    if (error instanceof RequestValidationError) {
-        return res.status(400).json({
-            error: error.message
-        });
-    }
-
-    console.error(`${label}:`, error);
-    return res.status(500).json({
-        error: label
+export function sendAPIError(res, status, code, message) {
+    return res.status(status).json({
+        error: {
+            code,
+            message
+        }
     });
 }
 
-export class RequestValidationError extends Error {}
+export function handleRouteError(res, error, label) {
+    if (error instanceof RequestValidationError) {
+        return sendAPIError(res, 400, error.code, error.message);
+    }
+
+    console.error(`${label}:`, error);
+    return sendAPIError(res, 500, "server_error", label);
+}
+
+export class RequestValidationError extends Error {
+    constructor(message, code = "validation_error") {
+        super(message);
+        this.name = "RequestValidationError";
+        this.code = code;
+    }
+}

@@ -1,7 +1,14 @@
 import express from "express";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { supabaseAdmin } from "../services/supabaseClient.js";
-import { handleRouteError, optionalDateString, requiredDateString, requiredNumber } from "../utils/requestValues.js";
+import {
+    handleRouteError,
+    optionalDateString,
+    requiredDateString,
+    requiredNumber,
+    requiredString,
+    sendAPIError
+} from "../utils/requestValues.js";
 
 const router = express.Router();
 
@@ -29,9 +36,7 @@ router.get("/", async (req, res) => {
 
     if (error) {
         console.error("Weight logs fetch failed:", error);
-        return res.status(500).json({
-            error: "Weight logs fetch failed"
-        });
+        return sendAPIError(res, 500, "server_error", "Weight logs fetch failed");
     }
 
     res.json({
@@ -43,13 +48,14 @@ router.post("/", async (req, res) => {
     try {
         const payload = {
             user_id: req.user.id,
+            client_id: requiredString(req.body.client_id, "client_id"),
             weight_kg: requiredNumber(req.body.weight_kg, "weight_kg"),
             recorded_at: requiredDateString(req.body.recorded_at ?? new Date().toISOString(), "recorded_at")
         };
 
         const { data, error } = await supabaseAdmin
             .from("weight_logs")
-            .insert(payload)
+            .upsert(payload, { onConflict: "user_id,client_id" })
             .select("*")
             .single();
 
@@ -74,9 +80,7 @@ router.delete("/:id", async (req, res) => {
 
     if (error) {
         console.error("Weight log delete failed:", error);
-        return res.status(500).json({
-            error: "Weight log delete failed"
-        });
+        return sendAPIError(res, 500, "server_error", "Weight log delete failed");
     }
 
     res.json({

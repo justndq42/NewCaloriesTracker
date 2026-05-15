@@ -1,7 +1,7 @@
 import express from "express";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { supabaseAdmin } from "../services/supabaseClient.js";
-import { handleRouteError, requiredNumber, requiredString } from "../utils/requestValues.js";
+import { handleRouteError, requiredNumber, requiredString, sendAPIError } from "../utils/requestValues.js";
 
 const router = express.Router();
 
@@ -16,9 +16,7 @@ router.get("/", async (req, res) => {
 
     if (error) {
         console.error("Custom foods fetch failed:", error);
-        return res.status(500).json({
-            error: "Custom foods fetch failed"
-        });
+        return sendAPIError(res, 500, "server_error", "Custom foods fetch failed");
     }
 
     res.json({
@@ -35,7 +33,7 @@ router.post("/", async (req, res) => {
 
         const { data, error } = await supabaseAdmin
             .from("custom_foods")
-            .insert(payload)
+            .upsert(payload, { onConflict: "user_id,client_id" })
             .select("*")
             .single();
 
@@ -68,9 +66,7 @@ router.put("/:id", async (req, res) => {
         }
 
         if (!data) {
-            return res.status(404).json({
-                error: "Custom food not found"
-            });
+            return sendAPIError(res, 404, "not_found", "Custom food not found");
         }
 
         res.json({
@@ -90,9 +86,7 @@ router.delete("/:id", async (req, res) => {
 
     if (error) {
         console.error("Custom food delete failed:", error);
-        return res.status(500).json({
-            error: "Custom food delete failed"
-        });
+        return sendAPIError(res, 500, "server_error", "Custom food delete failed");
     }
 
     res.json({
@@ -102,6 +96,7 @@ router.delete("/:id", async (req, res) => {
 
 function buildCustomFoodPayload(body) {
     return {
+        client_id: requiredString(body.client_id, "client_id"),
         name: requiredString(body.name, "name"),
         calories: requiredNumber(body.calories, "calories"),
         protein_g: requiredNumber(body.protein_g, "protein_g"),

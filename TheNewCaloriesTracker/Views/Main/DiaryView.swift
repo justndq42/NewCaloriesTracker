@@ -3,17 +3,25 @@ import SwiftData
 
 struct DiaryView: View {
     let profile: UserProfileModel
-    @Environment(AppViewModel.self) private var vm
     @Environment(\.modelContext) private var context
+    @Environment(AuthSessionStore.self) private var authStore
     @Query(sort: \DiaryEntryModel.date, order: .reverse) private var allEntries: [DiaryEntryModel]
     @State private var selectedDate: Date = Date()
     @State private var activeSlot: DiaryLogSlot?
 
     private let timelineHours = Array(7...23)
     private let calendar = Calendar.current
+    private static let vietnameseDayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "d 'tháng' M"
+        return formatter
+    }()
 
     var selectedEntries: [DiaryEntryModel] {
-        allEntries.filter { calendar.isDate($0.date, inSameDayAs: selectedDate) }
+        allEntries.filter {
+            $0.userID == profile.userID && calendar.isDate($0.date, inSameDayAs: selectedDate)
+        }
     }
     var totalCal: Int { selectedEntries.reduce(0) { $0 + $1.calories } }
     var totalProtein: Double { selectedEntries.reduce(0) { $0 + $1.protein } }
@@ -40,7 +48,7 @@ struct DiaryView: View {
                                     activeSlot = DiaryLogSlot(date: dateForHour(hour))
                                 },
                                 onDelete: { entry in
-                                    vm.removeEntry(entry, context: context)
+                                    deleteEntry(entry)
                                 }
                             )
                         }
@@ -174,6 +182,22 @@ struct DiaryView: View {
         }
     }
 
+    private func deleteEntry(_ entry: DiaryEntryModel) {
+        Task {
+            guard let userID = profile.userID else {
+                return
+            }
+
+            let accessToken = await authStore.accessToken()
+            try? await DiaryEntrySyncService.shared.delete(
+                entry: entry,
+                userID: userID,
+                context: context,
+                accessToken: accessToken
+            )
+        }
+    }
+
     private func dateForHour(_ hour: Int) -> Date {
         calendar.date(
             bySettingHour: hour,
@@ -187,11 +211,17 @@ struct DiaryView: View {
         if calendar.isDateInToday(selectedDate) { return "Hôm nay" }
         if calendar.isDateInYesterday(selectedDate) { return "Hôm qua" }
         if calendar.isDateInTomorrow(selectedDate) { return "Ngày mai" }
-        return selectedDate.formatted(.dateTime.day().month())
+        return Self.vietnameseDayFormatter.string(from: selectedDate)
     }
 
     private var displaySubtitle: String? {
-        selectedDate.formatted(.dateTime.weekday(.wide))
+        if calendar.isDateInToday(selectedDate)
+            || calendar.isDateInYesterday(selectedDate)
+            || calendar.isDateInTomorrow(selectedDate) {
+            return Self.vietnameseDayFormatter.string(from: selectedDate)
+        }
+
+        return nil
     }
 
     private func goToPreviousDay() {

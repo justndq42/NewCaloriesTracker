@@ -90,10 +90,15 @@ struct MainTabView: View {
             VStack(spacing: 4) {
                 Image(systemName: systemImage)
                     .font(.system(size: 18, weight: .semibold))
+                    .frame(height: 20)
                 Text(title)
-                    .font(.caption2.weight(.semibold))
+                    .font(.system(size: 11, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+                    .frame(height: 14)
             }
             .foregroundStyle(isSelected ? .black : .secondary)
+            .frame(height: 54)
             .frame(maxWidth: .infinity)
         }
     }

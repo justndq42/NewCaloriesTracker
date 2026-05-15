@@ -3,7 +3,6 @@ import SwiftData
 
 @Observable
 class OnboardingViewModel {
-    var name: String = ""
     var gender: String = "male"
     var age: Int = 22
     var weight: Double = 60
@@ -11,8 +10,6 @@ class OnboardingViewModel {
     var activityLevel: Int = 0
     var goal: String = "maintain"
     var currentStep: Int = 1
-    
-    var isStep1Valid: Bool { !name.trimmingCharacters(in: .whitespaces).isEmpty }
 
     private var nutritionProfile: NutritionProfile {
         NutritionProfile(
@@ -33,9 +30,10 @@ class OnboardingViewModel {
     var tdee: Double { nutritionProfile.tdee }
     var targetCalories: Double { nutritionProfile.targetCalories }
     
-    func saveProfile(context: ModelContext) {
+    func saveProfile(userID: String, displayName: String, context: ModelContext) -> UserProfileModel {
         let profile = UserProfileModel(
-            name: name,
+            userID: userID,
+            name: displayName,
             gender: gender,
             age: age,
             weight: weight,
@@ -46,5 +44,7 @@ class OnboardingViewModel {
         )
         context.insert(profile)
         try? context.save()
+
+        return profile
     }
 }

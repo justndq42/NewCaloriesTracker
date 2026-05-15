@@ -133,6 +133,7 @@ private struct NutritionGoalDetailsSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
+    @Environment(AuthSessionStore.self) private var authStore
 
     @State private var proteinPercent: Double
     @State private var carbsPercent: Double
@@ -295,7 +296,18 @@ private struct NutritionGoalDetailsSheet: View {
         guard canSave else { return }
         profile.macroDistribution = draftDistribution
         try? context.save()
+        syncProfile()
         dismiss()
+    }
+
+    private func syncProfile() {
+        Task {
+            guard let accessToken = await authStore.accessToken() else {
+                return
+            }
+
+            try? await ProfileSyncService.shared.syncProfile(profile, accessToken: accessToken)
+        }
     }
 }
 

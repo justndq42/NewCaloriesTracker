@@ -55,7 +55,7 @@ struct OnboardingStep3: View {
                 
                 // TDEE Result Card
                 VStack(spacing: 16) {
-                    Text("Chỉ số của \(vm.name)").font(.headline).foregroundStyle(.secondary)
+                    Text("Chỉ số của bạn").font(.headline).foregroundStyle(.secondary)
                     
                     HStack(spacing: 0) {
                         TDEEStatItem(label: "BMR",  value: "\(Int(vm.bmr))",  unit: "kcal")

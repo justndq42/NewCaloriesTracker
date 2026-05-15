@@ -6,6 +6,7 @@ struct UpdateWeightSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
+    @Environment(AuthSessionStore.self) private var authStore
 
     @State private var weightText: String
     @State private var draftWeight: Double
@@ -173,8 +174,37 @@ struct UpdateWeightSheet: View {
     private func saveWeight() {
         guard isDraftWeightValid else { return }
         profile.weight = draftWeight
-        profile.weightUpdatedAt = Date()
+        let updatedAt = Date()
+        profile.weightUpdatedAt = updatedAt
         try? context.save()
+        syncWeightLog(weight: draftWeight, recordedAt: updatedAt)
+        syncProfile()
         dismiss()
+    }
+
+    private func syncWeightLog(weight: Double, recordedAt: Date) {
+        Task {
+            guard let userID = authStore.user?.id,
+                  let accessToken = await authStore.accessToken() else {
+                return
+            }
+
+            try? await WeightLogSyncService.shared.syncWeight(
+                weight,
+                recordedAt: recordedAt,
+                userID: userID,
+                accessToken: accessToken
+            )
+        }
+    }
+
+    private func syncProfile() {
+        Task {
+            guard let accessToken = await authStore.accessToken() else {
+                return
+            }
+
+            try? await ProfileSyncService.shared.syncProfile(profile, accessToken: accessToken)
+        }
     }
 }

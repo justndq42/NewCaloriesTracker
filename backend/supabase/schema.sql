@@ -42,6 +42,7 @@ create table if not exists public.nutrition_goals (
 create table if not exists public.custom_foods (
     id uuid primary key default gen_random_uuid(),
     user_id uuid not null references auth.users(id) on delete cascade,
+    client_id text,
     name text not null,
     calories int not null check (calories >= 0),
     protein_g numeric(7, 2) not null default 0 check (protein_g >= 0),
@@ -55,6 +56,7 @@ create table if not exists public.custom_foods (
 create table if not exists public.diary_entries (
     id uuid primary key default gen_random_uuid(),
     user_id uuid not null references auth.users(id) on delete cascade,
+    client_id text,
     custom_food_id uuid references public.custom_foods(id) on delete set null,
     food_name text not null,
     calories int not null check (calories >= 0),
@@ -82,11 +84,30 @@ create table if not exists public.water_logs (
 create table if not exists public.weight_logs (
     id uuid primary key default gen_random_uuid(),
     user_id uuid not null references auth.users(id) on delete cascade,
+    client_id text,
     weight_kg numeric(5, 1) not null check (weight_kg between 20 and 400),
     recorded_at timestamptz not null default now(),
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
+
+alter table public.custom_foods
+    add column if not exists client_id text;
+
+alter table public.diary_entries
+    add column if not exists client_id text;
+
+alter table public.weight_logs
+    add column if not exists client_id text;
+
+create unique index if not exists custom_foods_user_id_client_id_key
+    on public.custom_foods (user_id, client_id);
+
+create unique index if not exists diary_entries_user_id_client_id_key
+    on public.diary_entries (user_id, client_id);
+
+create unique index if not exists weight_logs_user_id_client_id_key
+    on public.weight_logs (user_id, client_id);
 
 create index if not exists custom_foods_user_id_created_at_idx
     on public.custom_foods (user_id, created_at desc);

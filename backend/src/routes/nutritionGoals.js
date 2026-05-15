@@ -1,7 +1,7 @@
 import express from "express";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { supabaseAdmin } from "../services/supabaseClient.js";
-import { handleRouteError, optionalNumber, requiredNumber, RequestValidationError } from "../utils/requestValues.js";
+import { handleRouteError, optionalNumber, requiredNumber, RequestValidationError, sendAPIError } from "../utils/requestValues.js";
 
 const router = express.Router();
 
@@ -16,9 +16,7 @@ router.get("/", async (req, res) => {
 
     if (error) {
         console.error("Nutrition goals fetch failed:", error);
-        return res.status(500).json({
-            error: "Nutrition goals fetch failed"
-        });
+        return sendAPIError(res, 500, "server_error", "Nutrition goals fetch failed");
     }
 
     res.json({

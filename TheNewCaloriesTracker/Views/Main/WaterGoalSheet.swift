@@ -2,8 +2,9 @@ import SwiftUI
 
 struct WaterGoalSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(AuthSessionStore.self) private var authStore
     @State private var waterStore = WaterIntakeStore.shared
-    @State private var selectedGoal = WaterIntakeStore.shared.dailyGoal
+    @State private var selectedGoal = 3_000
     @State private var customGoalText = ""
 
     private let options = [2_000, 2_500, 3_000, 3_500, 4_000]
@@ -60,6 +61,9 @@ struct WaterGoalSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .presentationBackground(AppTheme.ColorToken.screenBackground)
             .onAppear {
+                if let userID = authStore.user?.id {
+                    selectedGoal = waterStore.dailyGoal(for: userID)
+                }
                 customGoalText = "\(selectedGoal)"
             }
             .toolbar {
@@ -68,8 +72,10 @@ struct WaterGoalSheet: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Lưu") {
-                        guard let resolvedGoal else { return }
-                        waterStore.dailyGoal = resolvedGoal
+                        guard let resolvedGoal, let userID = authStore.user?.id else { return }
+                        waterStore.setDailyGoal(resolvedGoal, for: userID)
+                        waterStore.markNeedsSync(on: Date(), userID: userID)
+                        syncTodayWaterGoal(for: userID)
                         dismiss()
                     }
                     .fontWeight(.semibold)
@@ -129,5 +135,19 @@ struct WaterGoalSheet: View {
         return liters.truncatingRemainder(dividingBy: 1) == 0
             ? "\(Int(liters))L"
             : String(format: "%.1fL", liters)
+    }
+
+    private func syncTodayWaterGoal(for userID: String) {
+        Task {
+            guard let accessToken = await authStore.accessToken() else {
+                return
+            }
+
+            try? await WaterLogSyncService.shared.syncLocalLog(
+                on: Date(),
+                userID: userID,
+                accessToken: accessToken
+            )
+        }
     }
 }

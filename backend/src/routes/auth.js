@@ -4,7 +4,8 @@ import {
     cleanString,
     handleRouteError,
     requiredString,
-    RequestValidationError
+    RequestValidationError,
+    sendAPIError
 } from "../utils/requestValues.js";
 
 const router = express.Router();
@@ -22,7 +23,7 @@ router.post("/signup", async (req, res) => {
         });
 
         if (error) {
-            return res.status(400).json({ error: error.message });
+            return sendAuthError(res, error, 400);
         }
 
         return res.status(201).json(toAuthResponse(data));
@@ -42,7 +43,7 @@ router.post("/login", async (req, res) => {
         });
 
         if (error) {
-            return res.status(401).json({ error: error.message });
+            return sendAuthError(res, error, 401);
         }
 
         return res.json(toAuthResponse(data));
@@ -60,7 +61,7 @@ router.post("/refresh", async (req, res) => {
         });
 
         if (error) {
-            return res.status(401).json({ error: error.message });
+            return sendAuthError(res, error, 401);
         }
 
         return res.json(toAuthResponse(data));
@@ -113,6 +114,45 @@ function toSession(session) {
         expires_in: session.expires_in,
         token_type: session.token_type
     };
+}
+
+function sendAuthError(res, error, fallbackStatus) {
+    const message = error.message ?? "";
+    const normalizedMessage = message.toLowerCase();
+
+    if (normalizedMessage.includes("already registered")) {
+        return sendAPIError(
+            res,
+            409,
+            "auth_email_registered",
+            "Email này đã được đăng ký. Hãy chuyển sang đăng nhập hoặc dùng email khác."
+        );
+    }
+
+    if (normalizedMessage.includes("email not confirmed")) {
+        return sendAPIError(
+            res,
+            401,
+            "auth_email_unconfirmed",
+            "Email chưa được xác nhận. Vui lòng kiểm tra hộp thư trước khi đăng nhập."
+        );
+    }
+
+    if (normalizedMessage.includes("invalid login credentials")) {
+        return sendAPIError(
+            res,
+            401,
+            "auth_invalid_credentials",
+            "Email hoặc mật khẩu không chính xác."
+        );
+    }
+
+    return sendAPIError(
+        res,
+        fallbackStatus,
+        "auth_failed",
+        message || "Xác thực thất bại. Vui lòng thử lại."
+    );
 }
 
 export default router;

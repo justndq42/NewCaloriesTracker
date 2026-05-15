@@ -44,7 +44,14 @@ class FoodSearchViewModel: ObservableObject {
         }
     }
 
-    func addEntry(food: FoodItem, date: Date = Date(), context: ModelContext) {
+    @discardableResult
+    func addEntry(
+        food: FoodItem,
+        date: Date = Date(),
+        context: ModelContext,
+        customFoodID: String? = nil,
+        userID: String
+    ) -> DiaryEntryModel {
         let entry = DiaryEntryModel(
             foodName: food.name,
             calories: food.calories,
@@ -53,9 +60,12 @@ class FoodSearchViewModel: ObservableObject {
             fat:      food.fat,
             unit:     food.unit,
             meal:     MealPeriod.from(date: date).title,
-            date:     date
+            date:     date,
+            customFoodID: customFoodID,
+            userID: userID
         )
         context.insert(entry)
         try? context.save()
+        return entry
     }
 }

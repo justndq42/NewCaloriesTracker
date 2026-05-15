@@ -92,7 +92,7 @@ struct MealPlanGenerateButton: View {
 
     var body: some View {
         Button(action: onGenerate) {
-            Label("Tạo meal plan ngày hôm nay", systemImage: "sparkles")
+            Label("Tạo Meal Plan của ngày hôm nay", systemImage: "sparkles")
                 .appCompactPrimaryButtonStyle()
         }
         .padding(.horizontal)

@@ -3,6 +3,7 @@ import UIKit
 
 struct WaterIntakeCard: View {
     let date: Date
+    @Environment(AuthSessionStore.self) private var authStore
     @State private var waterStore = WaterIntakeStore.shared
     @State private var totalWater = 0
     @State private var amountScale: CGFloat = 1
@@ -16,8 +17,17 @@ struct WaterIntakeCard: View {
         Calendar.current.startOfDay(for: date)
     }
 
+    private var currentUserID: String? {
+        authStore.user?.id
+    }
+
+    private var dailyGoal: Int {
+        guard let currentUserID else { return 3_000 }
+        return waterStore.dailyGoal(for: currentUserID)
+    }
+
     private var fillProgress: CGFloat {
-        min(CGFloat(totalWater) / CGFloat(waterStore.dailyGoal), 1)
+        min(CGFloat(totalWater) / CGFloat(dailyGoal), 1)
     }
 
     private var actionTint: Color {
@@ -25,7 +35,8 @@ struct WaterIntakeCard: View {
     }
 
     private var canIncrement: Bool {
-        waterStore.canIncrement(on: selectedDay)
+        guard let currentUserID else { return false }
+        return waterStore.canIncrement(on: selectedDay, userID: currentUserID)
     }
 
     private var incrementTint: Color {
@@ -46,7 +57,7 @@ struct WaterIntakeCard: View {
                         .foregroundColor(.white)
                         .scaleEffect(amountScale)
                         .animation(.spring(response: 0.22, dampingFraction: 0.62), value: amountScale)
-                    Text("Mục tiêu \(waterStore.dailyGoal / 1_000)L/ngày")
+                    Text("Mục tiêu \(dailyGoal / 1_000)L/ngày")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.6))
                 }
@@ -66,7 +77,7 @@ struct WaterIntakeCard: View {
         .onChange(of: selectedDay) { _, _ in
             reloadTotal()
         }
-        .onChange(of: waterStore.dailyGoal) { _, _ in
+        .onChange(of: waterStore.revision) { _, _ in
             reloadTotal()
         }
     }
@@ -161,19 +172,43 @@ struct WaterIntakeCard: View {
             animateGoalReachedFeedback()
             return
         }
-        waterStore.increment(volume: defaultVolume, on: selectedDay)
-        totalWater = waterStore.total(for: selectedDay)
+        guard let currentUserID else { return }
+        waterStore.increment(volume: defaultVolume, on: selectedDay, userID: currentUserID)
+        totalWater = waterStore.total(for: selectedDay, userID: currentUserID)
+        syncWaterLog()
         animateFeedback()
     }
 
     private func decrementWater() {
-        waterStore.decrement(volume: defaultVolume, on: selectedDay)
-        totalWater = waterStore.total(for: selectedDay)
+        guard let currentUserID else { return }
+        waterStore.decrement(volume: defaultVolume, on: selectedDay, userID: currentUserID)
+        totalWater = waterStore.total(for: selectedDay, userID: currentUserID)
+        syncWaterLog()
         animateFeedback()
     }
 
     private func reloadTotal() {
-        totalWater = waterStore.total(for: selectedDay)
+        guard let currentUserID else {
+            totalWater = 0
+            return
+        }
+
+        totalWater = waterStore.total(for: selectedDay, userID: currentUserID)
+    }
+
+    private func syncWaterLog() {
+        Task {
+            guard let userID = authStore.user?.id,
+                  let accessToken = await authStore.accessToken() else {
+                return
+            }
+
+            try? await WaterLogSyncService.shared.syncLocalLog(
+                on: selectedDay,
+                userID: userID,
+                accessToken: accessToken
+            )
+        }
     }
 
     private func animateFeedback() {

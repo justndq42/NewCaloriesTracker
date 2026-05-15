@@ -3,11 +3,10 @@ import Foundation
 @Observable
 final class WaterIntakeStore {
     static let shared = WaterIntakeStore()
-    private let dailyGoalKey = "water-intake-daily-goal"
 
     private let defaults: UserDefaults
     private let calendar: Calendar
-    private var storedDailyGoal: Int
+    private(set) var revision = 0
 
     init(
         defaults: UserDefaults = .standard,
@@ -15,80 +14,114 @@ final class WaterIntakeStore {
     ) {
         self.defaults = defaults
         self.calendar = calendar
-        let persistedGoal = defaults.integer(forKey: dailyGoalKey)
-        self.storedDailyGoal = persistedGoal > 0 ? persistedGoal : 3_000
     }
 
-    var dailyGoal: Int {
-        get { storedDailyGoal }
-        set {
-            let normalizedGoal = max(1_000, newValue)
-            storedDailyGoal = normalizedGoal
-            defaults.set(normalizedGoal, forKey: dailyGoalKey)
-        }
+    func dailyGoal(for userID: String) -> Int {
+        _ = revision
+        let persistedGoal = defaults.integer(forKey: dailyGoalKey(for: userID))
+        return persistedGoal > 0 ? persistedGoal : 3_000
     }
 
-    func total(for date: Date) -> Int {
-        migrateLegacyDataIfNeeded(for: date)
-        return normalizedTotal(forKey: storageKey(for: date))
+    func setDailyGoal(_ newValue: Int, for userID: String) {
+        let normalizedGoal = max(1_000, newValue)
+        defaults.set(normalizedGoal, forKey: dailyGoalKey(for: userID))
+        revision += 1
     }
 
-    func increment(volume: Int, on date: Date) {
-        let key = storageKey(for: date)
-        let updatedValue = min(dailyGoal, total(for: date) + max(0, volume))
+    func total(for date: Date, userID: String) -> Int {
+        normalizedTotal(forKey: storageKey(for: date, userID: userID), userID: userID)
+    }
+
+    func increment(volume: Int, on date: Date, userID: String) {
+        let key = storageKey(for: date, userID: userID)
+        let updatedValue = min(dailyGoal(for: userID), total(for: date, userID: userID) + max(0, volume))
         defaults.set(updatedValue, forKey: key)
+        markNeedsSync(on: date, userID: userID)
+        revision += 1
     }
 
-    func decrement(volume: Int, on date: Date) {
-        let key = storageKey(for: date)
-        let currentValue = total(for: date)
+    func decrement(volume: Int, on date: Date, userID: String) {
+        let key = storageKey(for: date, userID: userID)
+        let currentValue = total(for: date, userID: userID)
         defaults.set(max(0, currentValue - max(0, volume)), forKey: key)
+        markNeedsSync(on: date, userID: userID)
+        revision += 1
     }
 
-    func canIncrement(on date: Date) -> Bool {
-        total(for: date) < dailyGoal
+    func canIncrement(on date: Date, userID: String) -> Bool {
+        total(for: date, userID: userID) < dailyGoal(for: userID)
     }
 
-    private func storageKey(for date: Date) -> String {
+    func restore(consumedML: Int, goalML: Int, on date: Date, userID: String, updateDailyGoal: Bool) {
+        if updateDailyGoal {
+            setDailyGoal(goalML, for: userID)
+        }
+
+        let normalizedGoal = max(1_000, goalML)
+        let normalizedConsumed = min(max(0, consumedML), normalizedGoal)
+        defaults.set(normalizedConsumed, forKey: storageKey(for: date, userID: userID))
+        revision += 1
+    }
+
+    func markNeedsSync(on date: Date, userID: String) {
+        var pendingDates = pendingDateKeys(for: userID)
+        pendingDates.insert(dateKey(for: date))
+        defaults.set(Array(pendingDates), forKey: pendingDatesKey(for: userID))
+    }
+
+    func pendingSyncDates(for userID: String) -> [Date] {
+        pendingDateKeys(for: userID)
+            .compactMap(Self.syncDateFormatter.date(from:))
+            .sorted()
+    }
+
+    func markSynced(on date: Date, userID: String) {
+        var pendingDates = pendingDateKeys(for: userID)
+        pendingDates.remove(dateKey(for: date))
+        defaults.set(Array(pendingDates), forKey: pendingDatesKey(for: userID))
+    }
+
+    private func dailyGoalKey(for userID: String) -> String {
+        "water-intake-\(userID)-daily-goal"
+    }
+
+    private func pendingDatesKey(for userID: String) -> String {
+        "water-intake-\(userID)-pending-dates"
+    }
+
+    private func storageKey(for date: Date, userID: String) -> String {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
         let year = components.year ?? 0
         let month = components.month ?? 0
         let day = components.day ?? 0
-        return "water-intake-\(year)-\(month)-\(day)"
+        return "water-intake-\(userID)-\(year)-\(month)-\(day)"
     }
 
-    private func migrateLegacyDataIfNeeded(for date: Date) {
-        let currentKey = storageKey(for: date)
-        guard defaults.object(forKey: currentKey) == nil else { return }
-
-        let legacy200Key = legacyStorageKey(for: date, volume: 200)
-        let legacy500Key = legacyStorageKey(for: date, volume: 500)
-        let legacyTotal = defaults.integer(forKey: legacy200Key) + defaults.integer(forKey: legacy500Key)
-
-        if legacyTotal > 0 {
-            defaults.set(legacyTotal, forKey: currentKey)
-        }
-
-        defaults.removeObject(forKey: legacy200Key)
-        defaults.removeObject(forKey: legacy500Key)
+    private func pendingDateKeys(for userID: String) -> Set<String> {
+        Set(defaults.stringArray(forKey: pendingDatesKey(for: userID)) ?? [])
     }
 
-    private func normalizedTotal(forKey key: String) -> Int {
+    private func dateKey(for date: Date) -> String {
+        Self.syncDateFormatter.string(from: calendar.startOfDay(for: date))
+    }
+
+    private func normalizedTotal(forKey key: String, userID: String) -> Int {
         let value = defaults.integer(forKey: key)
-        let clampedValue = min(max(0, value), dailyGoal)
+        let clampedValue = min(max(0, value), dailyGoal(for: userID))
 
         if clampedValue != value {
             defaults.set(clampedValue, forKey: key)
+            revision += 1
         }
 
         return clampedValue
     }
 
-    private func legacyStorageKey(for date: Date, volume: Int) -> String {
-        let components = calendar.dateComponents([.year, .month, .day], from: date)
-        let year = components.year ?? 0
-        let month = components.month ?? 0
-        let day = components.day ?? 0
-        return "water-intake-\(year)-\(month)-\(day)-\(volume)"
-    }
+    private static let syncDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
 }

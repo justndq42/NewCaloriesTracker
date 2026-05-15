@@ -1,7 +1,7 @@
 import express from "express";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { supabaseAdmin } from "../services/supabaseClient.js";
-import { handleRouteError, requiredISODate, requiredNumber } from "../utils/requestValues.js";
+import { handleRouteError, requiredISODate, requiredNumber, sendAPIError } from "../utils/requestValues.js";
 
 const router = express.Router();
 
@@ -22,9 +22,7 @@ router.get("/", async (req, res) => {
 
     if (error) {
         console.error("Water logs fetch failed:", error);
-        return res.status(500).json({
-            error: "Water logs fetch failed"
-        });
+        return sendAPIError(res, 500, "server_error", "Water logs fetch failed");
     }
 
     res.json({
@@ -68,9 +66,7 @@ router.delete("/:id", async (req, res) => {
 
     if (error) {
         console.error("Water log delete failed:", error);
-        return res.status(500).json({
-            error: "Water log delete failed"
-        });
+        return sendAPIError(res, 500, "server_error", "Water log delete failed");
     }
 
     res.json({

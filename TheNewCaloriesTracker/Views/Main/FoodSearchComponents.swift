@@ -156,12 +156,30 @@ struct FoodRow: View {
 struct FoodDetailSheet: View {
     let food: FoodItem
     let entryDate: Date
+    let customFoodToEdit: CustomFoodModel?
     let onAdd: (FoodItem) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var portionCount = 1.0
+    @State private var isShowingEditSheet = false
+
+    init(
+        food: FoodItem,
+        entryDate: Date,
+        customFoodToEdit: CustomFoodModel? = nil,
+        onAdd: @escaping (FoodItem) -> Void
+    ) {
+        self.food = food
+        self.entryDate = entryDate
+        self.customFoodToEdit = customFoodToEdit
+        self.onAdd = onAdd
+    }
+
+    private var displayFood: FoodItem {
+        customFoodToEdit?.foodItem ?? food
+    }
 
     private var portionedFood: FoodItem {
-        food.scaledForPortions(portionCount)
+        displayFood.scaledForPortions(portionCount)
     }
 
     var body: some View {
@@ -169,7 +187,7 @@ struct FoodDetailSheet: View {
             ScrollView {
                 VStack(spacing: 18) {
                     FoodNutritionHero(food: portionedFood)
-                    FoodPortionControl(food: food, portionCount: $portionCount)
+                    FoodPortionControl(food: displayFood, portionCount: $portionCount)
                     FoodMacroRow(food: portionedFood)
                     FoodDetectedMealCard(entryDate: entryDate)
                     FoodAddButton {
@@ -179,11 +197,24 @@ struct FoodDetailSheet: View {
                 .padding(AppTheme.Spacing.screen)
             }
             .appScreenBackground()
-            .navigationTitle(food.name)
+            .navigationTitle(displayFood.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if customFoodToEdit != nil {
+                        Button("Chỉnh sửa") {
+                            isShowingEditSheet = true
+                        }
+                    }
+                }
+
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Đóng") { dismiss() }
+                }
+            }
+            .sheet(isPresented: $isShowingEditSheet) {
+                if let customFoodToEdit {
+                    CreateCustomFoodSheet(foodToEdit: customFoodToEdit)
                 }
             }
         }

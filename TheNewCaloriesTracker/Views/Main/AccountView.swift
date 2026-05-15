@@ -2,6 +2,8 @@ import SwiftUI
 import SwiftData
 
 struct AccountView: View {
+    @Environment(AuthSessionStore.self) private var authStore
+
     let profile: UserProfileModel
 
     var body: some View {
@@ -30,6 +32,9 @@ struct AccountView: View {
                     .buttonStyle(.plain)
 
                     AccountNutritionGoalSection(profile: profile)
+                    SignOutButton {
+                        authStore.signOut()
+                    }
                 }
                 .padding(AppTheme.Spacing.screen)
                 .padding(.bottom, 88)
@@ -40,8 +45,35 @@ struct AccountView: View {
     }
 }
 
+private struct SignOutButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: "rectangle.portrait.and.arrow.right")
+                Text("Đăng xuất")
+            }
+            .font(.headline.weight(.semibold))
+            .foregroundStyle(AppTheme.ColorToken.calories)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 15)
+            .background(AppTheme.ColorToken.calories.opacity(0.10))
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.compactCard, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 private struct AccountHeaderCard: View {
     let profile: UserProfileModel
+
+    private static let joinedDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "'ngày' d 'tháng' M 'năm' yyyy"
+        return formatter
+    }()
 
     private var displayName: String {
         profile.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Người dùng" : profile.name
@@ -59,7 +91,7 @@ private struct AccountHeaderCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(displayName)
                     .font(.title3.bold())
-                Text("Tham gia \(profile.joinedAt.formatted(date: .abbreviated, time: .omitted))")
+                Text("Tham gia \(Self.joinedDateFormatter.string(from: profile.joinedAt))")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -298,6 +330,7 @@ private struct GoalSetupSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
+    @Environment(AuthSessionStore.self) private var authStore
 
     @State private var selectedGoal: NutritionGoal
     @State private var currentWeight: Double
@@ -364,7 +397,18 @@ private struct GoalSetupSheet: View {
         profile.applyDefaultMacroDistribution()
 
         try? context.save()
+        syncProfile()
         dismiss()
+    }
+
+    private func syncProfile() {
+        Task {
+            guard let accessToken = await authStore.accessToken() else {
+                return
+            }
+
+            try? await ProfileSyncService.shared.syncProfile(profile, accessToken: accessToken)
+        }
     }
 
     private func normalized(_ value: Double) -> Double {

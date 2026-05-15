@@ -9,6 +9,7 @@ import customFoodsRouter from "./routes/customFoods.js";
 import diaryEntriesRouter from "./routes/diaryEntries.js";
 import waterLogsRouter from "./routes/waterLogs.js";
 import weightLogsRouter from "./routes/weightLogs.js";
+import { createRateLimiter } from "./middleware/rateLimit.js";
 
 dotenv.config();
 
@@ -18,6 +19,7 @@ const host = process.env.HOST || "0.0.0.0";
 
 app.use(cors());
 app.use(express.json());
+app.set("trust proxy", 1);
 
 app.get("/health", (req, res) => {
     res.json({
@@ -26,8 +28,41 @@ app.get("/health", (req, res) => {
     });
 });
 
-app.use("/auth", authRouter);
-app.use("/foods", foodsRouter);
+app.get("/health/deep", (req, res) => {
+    const checks = {
+        supabase_url: Boolean(process.env.SUPABASE_URL),
+        supabase_anon_key: Boolean(process.env.SUPABASE_ANON_KEY),
+        supabase_service_role_key: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+        spoonacular_api_key: Boolean(process.env.SPOONACULAR_API_KEY)
+    };
+    const ok = Object.values(checks).every(Boolean);
+
+    res.status(ok ? 200 : 503).json({
+        ok,
+        service: "the-new-calories-tracker-food-api",
+        checks
+    });
+});
+
+app.use(
+    "/auth",
+    createRateLimiter({
+        keyPrefix: "auth",
+        windowMS: 15 * 60 * 1000,
+        maxRequests: 30
+    }),
+    authRouter
+);
+app.use(
+    "/foods",
+    createRateLimiter({
+        keyPrefix: "foods",
+        windowMS: 60 * 1000,
+        maxRequests: 60,
+        message: "Bạn đang tra cứu quá nhanh. Vui lòng thử lại sau."
+    }),
+    foodsRouter
+);
 app.use("/me", meRouter);
 app.use("/me/nutrition-goals", nutritionGoalsRouter);
 app.use("/me/custom-foods", customFoodsRouter);

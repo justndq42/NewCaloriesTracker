@@ -1,7 +1,7 @@
 import express from "express";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { supabaseAdmin } from "../services/supabaseClient.js";
-import { cleanString, optionalNumber } from "../utils/requestValues.js";
+import { cleanString, optionalNumber, sendAPIError } from "../utils/requestValues.js";
 
 const router = express.Router();
 
@@ -16,9 +16,7 @@ router.get("/profile", async (req, res) => {
 
     if (error) {
         console.error("Profile fetch failed:", error);
-        return res.status(500).json({
-            error: "Profile fetch failed"
-        });
+        return sendAPIError(res, 500, "server_error", "Profile fetch failed");
     }
 
     res.json({
@@ -47,9 +45,7 @@ router.post("/profile", async (req, res) => {
 
     if (error) {
         console.error("Profile save failed:", error);
-        return res.status(500).json({
-            error: "Profile save failed"
-        });
+        return sendAPIError(res, 500, "server_error", "Profile save failed");
     }
 
     res.json({

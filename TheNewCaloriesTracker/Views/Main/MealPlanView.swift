@@ -4,6 +4,7 @@ import SwiftData
 struct MealPlanView: View {
     let profile: UserProfileModel
     @Environment(\.modelContext) private var context
+    @Environment(AuthSessionStore.self) private var authStore
     @StateObject private var vm = MealPlanViewModel()
     @State private var loggedMessage: String?
 
@@ -30,7 +31,7 @@ struct MealPlanView: View {
                 .padding(.bottom, 92)
             }
             .appScreenBackground()
-            .navigationTitle("Kế hoạch ăn")
+            .navigationTitle("Meal Plan")
             .overlay(alignment: .bottom) {
                 if let loggedMessage {
                     Text(loggedMessage)
@@ -56,7 +57,12 @@ struct MealPlanView: View {
     }
 
     private func logSlot(_ slot: MealPlanSlot) {
+        guard let userID = profile.userID else {
+            return
+        }
+
         let date = Calendar.current.date(bySettingHour: slot.kind.defaultHour, minute: 0, second: 0, of: Date()) ?? Date()
+        var entries: [DiaryEntryModel] = []
 
         for food in slot.foods {
             let entry = DiaryEntryModel(
@@ -67,13 +73,34 @@ struct MealPlanView: View {
                 fat: food.fat,
                 unit: food.unit,
                 meal: slot.kind.mealPeriod.title,
-                date: date
+                date: date,
+                userID: userID
             )
             context.insert(entry)
+            entries.append(entry)
         }
 
         try? context.save()
+        Task {
+            await syncEntries(entries, userID: userID)
+        }
         showLoggedMessage("Đã log bữa \(slot.kind.title)")
+    }
+
+    private func syncEntries(_ entries: [DiaryEntryModel], userID: String) async {
+        guard let accessToken = await authStore.accessToken() else {
+            return
+        }
+
+        for entry in entries {
+            try? await DiaryEntrySyncService.shared.push(
+                entry: entry,
+                remoteCustomFoodID: nil,
+                userID: userID,
+                context: context,
+                accessToken: accessToken
+            )
+        }
     }
 
     private func showLoggedMessage(_ message: String) {

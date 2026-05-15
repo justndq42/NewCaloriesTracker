@@ -37,13 +37,7 @@ final class BackendFoodService {
     private init() {}
 
     private var baseURL: URL {
-        if let raw = Bundle.main.object(forInfoDictionaryKey: "FOOD_API_BASE_URL") as? String,
-           let url = URL(string: raw),
-           !raw.isEmpty {
-            return url
-        }
-
-        return URL(string: "http://localhost:8787")!
+        BackendAPIConfiguration.baseURL
     }
 
     func search(query: String) async throws -> [FoodItem] {

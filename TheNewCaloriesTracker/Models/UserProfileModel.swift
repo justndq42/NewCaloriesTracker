@@ -3,6 +3,7 @@ import SwiftData
 
 @Model
 class UserProfileModel {
+    var userID: String?
     var name: String
     var joinedAt: Date = Date()
     var gender: String
@@ -19,6 +20,7 @@ class UserProfileModel {
     var isOnboardingDone: Bool
     
     init(
+        userID: String? = nil,
         name: String = "",
         joinedAt: Date = Date(),
         gender: String = "male",
@@ -36,6 +38,7 @@ class UserProfileModel {
     ) {
         let defaultMacro = MacroDistribution.default(for: NutritionGoal(rawValue: goal) ?? .maintain)
 
+        self.userID = userID
         self.name = name
         self.joinedAt = joinedAt
         self.gender = gender

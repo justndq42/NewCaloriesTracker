@@ -7,7 +7,8 @@ import {
     optionalDateString,
     requiredDateString,
     requiredNumber,
-    requiredString
+    requiredString,
+    sendAPIError
 } from "../utils/requestValues.js";
 
 const router = express.Router();
@@ -36,9 +37,7 @@ router.get("/", async (req, res) => {
 
     if (error) {
         console.error("Diary entries fetch failed:", error);
-        return res.status(500).json({
-            error: "Diary entries fetch failed"
-        });
+        return sendAPIError(res, 500, "server_error", "Diary entries fetch failed");
     }
 
     res.json({
@@ -55,7 +54,7 @@ router.post("/", async (req, res) => {
 
         const { data, error } = await supabaseAdmin
             .from("diary_entries")
-            .insert(payload)
+            .upsert(payload, { onConflict: "user_id,client_id" })
             .select("*")
             .single();
 
@@ -88,9 +87,7 @@ router.put("/:id", async (req, res) => {
         }
 
         if (!data) {
-            return res.status(404).json({
-                error: "Diary entry not found"
-            });
+            return sendAPIError(res, 404, "not_found", "Diary entry not found");
         }
 
         res.json({
@@ -110,9 +107,7 @@ router.delete("/:id", async (req, res) => {
 
     if (error) {
         console.error("Diary entry delete failed:", error);
-        return res.status(500).json({
-            error: "Diary entry delete failed"
-        });
+        return sendAPIError(res, 500, "server_error", "Diary entry delete failed");
     }
 
     res.json({
@@ -124,6 +119,7 @@ function buildDiaryEntryPayload(body) {
     const customFoodID = cleanString(body.custom_food_id);
 
     return {
+        client_id: requiredString(body.client_id, "client_id"),
         custom_food_id: customFoodID || null,
         food_name: requiredString(body.food_name, "food_name"),
         calories: requiredNumber(body.calories, "calories"),
