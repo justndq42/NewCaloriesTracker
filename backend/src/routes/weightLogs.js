@@ -5,51 +5,57 @@ import {
     handleRouteError,
     optionalDateString,
     requiredDateString,
-    requiredNumber,
-    requiredString,
+    requiredNumberInRange,
+    requiredStringInRange,
+    requiredUUID,
     sendAPIError
 } from "../utils/requestValues.js";
+import { logError } from "../utils/logger.js";
 
 const router = express.Router();
 
 router.use(requireAuth);
 
 router.get("/", async (req, res) => {
-    let query = supabaseAdmin
-        .from("weight_logs")
-        .select("*")
-        .eq("user_id", req.user.id)
-        .order("recorded_at", { ascending: false });
+    try {
+        let query = supabaseAdmin
+            .from("weight_logs")
+            .select("*")
+            .eq("user_id", req.user.id)
+            .order("recorded_at", { ascending: false });
 
-    const from = optionalDateString(req.query.from);
-    const to = optionalDateString(req.query.to);
+        const from = optionalDateString(req.query.from, "from");
+        const to = optionalDateString(req.query.to, "to");
 
-    if (from) {
-        query = query.gte("recorded_at", from);
+        if (from) {
+            query = query.gte("recorded_at", from);
+        }
+
+        if (to) {
+            query = query.lte("recorded_at", to);
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+            logError("weight_logs_fetch_failed", { request_id: req.id, error });
+            return sendAPIError(res, 500, "server_error", "Weight logs fetch failed");
+        }
+
+        return res.json({
+            weight_logs: data
+        });
+    } catch (error) {
+        return handleRouteError(res, error, "Weight logs fetch failed");
     }
-
-    if (to) {
-        query = query.lte("recorded_at", to);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-        console.error("Weight logs fetch failed:", error);
-        return sendAPIError(res, 500, "server_error", "Weight logs fetch failed");
-    }
-
-    res.json({
-        weight_logs: data
-    });
 });
 
 router.post("/", async (req, res) => {
     try {
         const payload = {
             user_id: req.user.id,
-            client_id: requiredString(req.body.client_id, "client_id"),
-            weight_kg: requiredNumber(req.body.weight_kg, "weight_kg"),
+            client_id: requiredStringInRange(req.body.client_id, "client_id", { maxLength: 128 }),
+            weight_kg: requiredNumberInRange(req.body.weight_kg, "weight_kg", 20, 400),
             recorded_at: requiredDateString(req.body.recorded_at ?? new Date().toISOString(), "recorded_at")
         };
 
@@ -63,29 +69,34 @@ router.post("/", async (req, res) => {
             throw error;
         }
 
-        res.status(201).json({
+        return res.status(201).json({
             weight_log: data
         });
     } catch (error) {
-        handleRouteError(res, error, "Weight log create failed");
+        return handleRouteError(res, error, "Weight log create failed");
     }
 });
 
 router.delete("/:id", async (req, res) => {
-    const { error } = await supabaseAdmin
-        .from("weight_logs")
-        .delete()
-        .eq("id", req.params.id)
-        .eq("user_id", req.user.id);
+    try {
+        const id = requiredUUID(req.params.id, "id");
+        const { error } = await supabaseAdmin
+            .from("weight_logs")
+            .delete()
+            .eq("id", id)
+            .eq("user_id", req.user.id);
 
-    if (error) {
-        console.error("Weight log delete failed:", error);
-        return sendAPIError(res, 500, "server_error", "Weight log delete failed");
+        if (error) {
+            logError("weight_log_delete_failed", { request_id: req.id, error });
+            return sendAPIError(res, 500, "server_error", "Weight log delete failed");
+        }
+
+        return res.json({
+            ok: true
+        });
+    } catch (error) {
+        return handleRouteError(res, error, "Weight log delete failed");
     }
-
-    res.json({
-        ok: true
-    });
 });
 
 export default router;

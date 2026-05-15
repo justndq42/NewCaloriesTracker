@@ -1,5 +1,6 @@
 import { supabaseAuth } from "../services/supabaseClient.js";
 import { sendAPIError } from "../utils/requestValues.js";
+import { logError } from "../utils/logger.js";
 
 export async function requireAuth(req, res, next) {
     const authHeader = req.headers.authorization || "";
@@ -19,7 +20,7 @@ export async function requireAuth(req, res, next) {
     try {
         authResult = await supabaseAuth.auth.getUser(token);
     } catch (error) {
-        console.error("Auth token verification failed:", error);
+        logError("auth_token_verification_failed", { request_id: req.id, error });
         return sendAPIError(
             res,
             401,

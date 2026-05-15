@@ -6,43 +6,52 @@ import {
     handleRouteError,
     optionalDateString,
     requiredDateString,
-    requiredNumber,
-    requiredString,
+    requiredEnum,
+    requiredIntegerInRange,
+    requiredNumberInRange,
+    requiredStringInRange,
+    requiredUUID,
+    RequestValidationError,
     sendAPIError
 } from "../utils/requestValues.js";
+import { logError } from "../utils/logger.js";
 
 const router = express.Router();
 
 router.use(requireAuth);
 
 router.get("/", async (req, res) => {
-    let query = supabaseAdmin
-        .from("diary_entries")
-        .select("*")
-        .eq("user_id", req.user.id)
-        .order("eaten_at", { ascending: false });
+    try {
+        let query = supabaseAdmin
+            .from("diary_entries")
+            .select("*")
+            .eq("user_id", req.user.id)
+            .order("eaten_at", { ascending: false });
 
-    const from = optionalDateString(req.query.from);
-    const to = optionalDateString(req.query.to);
+        const from = optionalDateString(req.query.from, "from");
+        const to = optionalDateString(req.query.to, "to");
 
-    if (from) {
-        query = query.gte("eaten_at", from);
+        if (from) {
+            query = query.gte("eaten_at", from);
+        }
+
+        if (to) {
+            query = query.lte("eaten_at", to);
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+            logError("diary_entries_fetch_failed", { request_id: req.id, error });
+            return sendAPIError(res, 500, "server_error", "Diary entries fetch failed");
+        }
+
+        return res.json({
+            diary_entries: data
+        });
+    } catch (error) {
+        return handleRouteError(res, error, "Diary entries fetch failed");
     }
-
-    if (to) {
-        query = query.lte("eaten_at", to);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-        console.error("Diary entries fetch failed:", error);
-        return sendAPIError(res, 500, "server_error", "Diary entries fetch failed");
-    }
-
-    res.json({
-        diary_entries: data
-    });
 });
 
 router.post("/", async (req, res) => {
@@ -51,6 +60,7 @@ router.post("/", async (req, res) => {
             ...buildDiaryEntryPayload(req.body),
             user_id: req.user.id
         };
+        await assertCustomFoodBelongsToUser(payload.custom_food_id, req.user.id);
 
         const { data, error } = await supabaseAdmin
             .from("diary_entries")
@@ -62,22 +72,24 @@ router.post("/", async (req, res) => {
             throw error;
         }
 
-        res.status(201).json({
+        return res.status(201).json({
             diary_entry: data
         });
     } catch (error) {
-        handleRouteError(res, error, "Diary entry create failed");
+        return handleRouteError(res, error, "Diary entry create failed");
     }
 });
 
 router.put("/:id", async (req, res) => {
     try {
         const payload = buildDiaryEntryPayload(req.body);
+        const id = requiredUUID(req.params.id, "id");
+        await assertCustomFoodBelongsToUser(payload.custom_food_id, req.user.id);
 
         const { data, error } = await supabaseAdmin
             .from("diary_entries")
             .update(payload)
-            .eq("id", req.params.id)
+            .eq("id", id)
             .eq("user_id", req.user.id)
             .select("*")
             .maybeSingle();
@@ -90,46 +102,75 @@ router.put("/:id", async (req, res) => {
             return sendAPIError(res, 404, "not_found", "Diary entry not found");
         }
 
-        res.json({
+        return res.json({
             diary_entry: data
         });
     } catch (error) {
-        handleRouteError(res, error, "Diary entry update failed");
+        return handleRouteError(res, error, "Diary entry update failed");
     }
 });
 
 router.delete("/:id", async (req, res) => {
-    const { error } = await supabaseAdmin
-        .from("diary_entries")
-        .delete()
-        .eq("id", req.params.id)
-        .eq("user_id", req.user.id);
+    try {
+        const id = requiredUUID(req.params.id, "id");
+        const { error } = await supabaseAdmin
+            .from("diary_entries")
+            .delete()
+            .eq("id", id)
+            .eq("user_id", req.user.id);
 
-    if (error) {
-        console.error("Diary entry delete failed:", error);
-        return sendAPIError(res, 500, "server_error", "Diary entry delete failed");
+        if (error) {
+            logError("diary_entry_delete_failed", { request_id: req.id, error });
+            return sendAPIError(res, 500, "server_error", "Diary entry delete failed");
+        }
+
+        return res.json({
+            ok: true
+        });
+    } catch (error) {
+        return handleRouteError(res, error, "Diary entry delete failed");
     }
-
-    res.json({
-        ok: true
-    });
 });
 
 function buildDiaryEntryPayload(body) {
     const customFoodID = cleanString(body.custom_food_id);
 
     return {
-        client_id: requiredString(body.client_id, "client_id"),
-        custom_food_id: customFoodID || null,
-        food_name: requiredString(body.food_name, "food_name"),
-        calories: requiredNumber(body.calories, "calories"),
-        protein_g: requiredNumber(body.protein_g, "protein_g"),
-        carbs_g: requiredNumber(body.carbs_g, "carbs_g"),
-        fat_g: requiredNumber(body.fat_g, "fat_g"),
-        unit: requiredString(body.unit, "unit"),
-        meal: requiredString(body.meal, "meal"),
+        client_id: requiredStringInRange(body.client_id, "client_id", { maxLength: 128 }),
+        custom_food_id: customFoodID ? requiredUUID(customFoodID, "custom_food_id") : null,
+        food_name: requiredStringInRange(body.food_name, "food_name", { maxLength: 140 }),
+        calories: requiredIntegerInRange(body.calories, "calories", 0, 10000),
+        protein_g: requiredNumberInRange(body.protein_g, "protein_g", 0, 1000),
+        carbs_g: requiredNumberInRange(body.carbs_g, "carbs_g", 0, 1000),
+        fat_g: requiredNumberInRange(body.fat_g, "fat_g", 0, 1000),
+        unit: requiredStringInRange(body.unit, "unit", { maxLength: 64 }),
+        meal: requiredEnum(body.meal, "meal", ["Sáng", "Trưa", "Snack", "Tối"]),
         eaten_at: requiredDateString(body.eaten_at, "eaten_at")
     };
+}
+
+async function assertCustomFoodBelongsToUser(customFoodID, userID) {
+    if (!customFoodID) {
+        return;
+    }
+
+    const { data, error } = await supabaseAdmin
+        .from("custom_foods")
+        .select("id")
+        .eq("id", customFoodID)
+        .eq("user_id", userID)
+        .maybeSingle();
+
+    if (error) {
+        throw error;
+    }
+
+    if (!data) {
+        throw new RequestValidationError(
+            "custom_food_id does not belong to the current user",
+            "invalid_custom_food"
+        );
+    }
 }
 
 export default router;

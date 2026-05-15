@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import { logWarn } from "../utils/logger.js";
 
 dotenv.config();
 
@@ -8,11 +9,11 @@ const anonKey = process.env.SUPABASE_ANON_KEY;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !serviceRoleKey) {
-    console.warn("Supabase service credentials are not configured.");
+    logWarn("missing_supabase_service_credentials");
 }
 
 if (!supabaseUrl || !anonKey) {
-    console.warn("Supabase auth credentials are not configured.");
+    logWarn("missing_supabase_auth_credentials");
 }
 
 export const supabaseAdmin = createClient(

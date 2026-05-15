@@ -5,6 +5,7 @@ import {
     cleanString,
     handleRouteError,
     requiredString,
+    requiredStringInRange,
     RequestValidationError,
     sendAPIError
 } from "../utils/requestValues.js";
@@ -15,7 +16,9 @@ router.post("/signup", async (req, res) => {
     try {
         const email = requiredEmail(req.body.email);
         const password = requiredPassword(req.body.password);
-        const displayName = cleanString(req.body.display_name);
+        const displayName = cleanString(req.body.display_name)
+            ? requiredStringInRange(req.body.display_name, "display_name", { maxLength: 100 })
+            : "";
 
         const { data, error } = await supabaseAuth.auth.signUp({
             email,
@@ -169,7 +172,7 @@ function requiredEmail(value) {
 }
 
 function requiredPassword(value) {
-    const password = requiredString(value, "password");
+    const password = requiredStringInRange(value, "password", { maxLength: 128 });
 
     if (password.length < 6) {
         throw new RequestValidationError("password must be at least 6 characters");

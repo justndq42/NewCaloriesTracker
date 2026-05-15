@@ -68,11 +68,38 @@ SPOONACULAR_API_KEY=your_spoonacular_key_here
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your_supabase_anon_key_here
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
+PASSWORD_RESET_REDIRECT_URL=narutocalories://password-reset
 ```
 
 Do not commit `.env`.
 
 The backend validates user bearer tokens with `SUPABASE_ANON_KEY` and performs trusted server-side database work with `SUPABASE_SERVICE_ROLE_KEY`.
+
+`PASSWORD_RESET_REDIRECT_URL` must match a Supabase Auth redirect URL. If it is missing or not deployed, password reset emails can fall back to the Supabase Site URL, commonly `http://localhost:3000`.
+
+## Production Checks
+
+Deep health check:
+
+```bash
+curl http://localhost:8787/health/deep
+```
+
+The API emits structured JSON logs with request IDs. Logs must not include passwords, access tokens, refresh tokens, Supabase service role keys, or provider API keys.
+
+Production checklist:
+
+```text
+docs/backend-production-checklist.md
+docs/backend-backup-recovery.md
+docs/e2e-release-test.md
+```
+
+Database hardening SQL:
+
+```text
+backend/supabase/backend_hardening.sql
+```
 
 ## Supabase Auth/Profile Smoke Test
 

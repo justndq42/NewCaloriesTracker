@@ -1,7 +1,15 @@
 import express from "express";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { supabaseAdmin } from "../services/supabaseClient.js";
-import { cleanString, optionalNumber, sendAPIError } from "../utils/requestValues.js";
+import {
+    handleRouteError,
+    optionalEnum,
+    optionalIntegerInRange,
+    optionalNumberInRange,
+    optionalString,
+    sendAPIError
+} from "../utils/requestValues.js";
+import { logError } from "../utils/logger.js";
 
 const router = express.Router();
 
@@ -15,7 +23,7 @@ router.get("/profile", async (req, res) => {
         .maybeSingle();
 
     if (error) {
-        console.error("Profile fetch failed:", error);
+        logError("profile_fetch_failed", { request_id: req.id, error });
         return sendAPIError(res, 500, "server_error", "Profile fetch failed");
     }
 
@@ -25,32 +33,45 @@ router.get("/profile", async (req, res) => {
 });
 
 router.post("/profile", async (req, res) => {
-    const payload = {
-        user_id: req.user.id,
-        display_name: cleanString(req.body.display_name),
-        gender: cleanString(req.body.gender) || "unspecified",
-        age: optionalNumber(req.body.age),
-        height_cm: optionalNumber(req.body.height_cm),
-        current_weight_kg: optionalNumber(req.body.current_weight_kg),
-        target_weight_kg: optionalNumber(req.body.target_weight_kg),
-        goal_type: cleanString(req.body.goal_type) || "maintain",
-        activity_level: cleanString(req.body.activity_level) || "moderate"
-    };
+    try {
+        const payload = buildProfilePayload(req.user.id, req.body);
 
-    const { data, error } = await supabaseAdmin
-        .from("profiles")
-        .upsert(payload, { onConflict: "user_id" })
-        .select("*")
-        .single();
+        const { data, error } = await supabaseAdmin
+            .from("profiles")
+            .upsert(payload, { onConflict: "user_id" })
+            .select("*")
+            .single();
 
-    if (error) {
-        console.error("Profile save failed:", error);
-        return sendAPIError(res, 500, "server_error", "Profile save failed");
+        if (error) {
+            logError("profile_save_failed", { request_id: req.id, error });
+            return sendAPIError(res, 500, "server_error", "Profile save failed");
+        }
+
+        return res.json({
+            profile: data
+        });
+    } catch (error) {
+        return handleRouteError(res, error, "Profile save failed");
     }
-
-    res.json({
-        profile: data
-    });
 });
+
+function buildProfilePayload(userID, body) {
+    return {
+        user_id: userID,
+        display_name: optionalString(body.display_name, "display_name", { maxLength: 100 }),
+        gender: optionalEnum(body.gender, "gender", ["male", "female", "unspecified"], "unspecified"),
+        age: optionalIntegerInRange(body.age, "age", 1, 120),
+        height_cm: optionalNumberInRange(body.height_cm, "height_cm", 50, 260),
+        current_weight_kg: optionalNumberInRange(body.current_weight_kg, "current_weight_kg", 20, 400),
+        target_weight_kg: optionalNumberInRange(body.target_weight_kg, "target_weight_kg", 20, 400),
+        goal_type: optionalEnum(body.goal_type, "goal_type", ["lose", "maintain", "gain"], "maintain"),
+        activity_level: optionalEnum(
+            body.activity_level,
+            "activity_level",
+            ["sedentary", "light", "moderate", "active", "athlete"],
+            "moderate"
+        )
+    };
+}
 
 export default router;

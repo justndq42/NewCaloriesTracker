@@ -1,4 +1,5 @@
 import { normalizeSpoonacularFood } from "../utils/normalizeFood.js";
+import { logWarn } from "../utils/logger.js";
 
 const baseURL = "https://api.spoonacular.com";
 
@@ -6,7 +7,7 @@ export async function searchSpoonacularFoods(query) {
     const apiKey = process.env.SPOONACULAR_API_KEY;
 
     if (!apiKey) {
-        console.warn("Missing SPOONACULAR_API_KEY");
+        logWarn("missing_spoonacular_api_key");
         return [];
     }
 

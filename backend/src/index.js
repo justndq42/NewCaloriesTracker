@@ -10,6 +10,8 @@ import diaryEntriesRouter from "./routes/diaryEntries.js";
 import waterLogsRouter from "./routes/waterLogs.js";
 import weightLogsRouter from "./routes/weightLogs.js";
 import { createRateLimiter } from "./middleware/rateLimit.js";
+import { requestLogger } from "./middleware/requestLogger.js";
+import { logInfo } from "./utils/logger.js";
 
 dotenv.config();
 
@@ -20,6 +22,7 @@ const host = process.env.HOST || "0.0.0.0";
 app.use(cors());
 app.use(express.json());
 app.set("trust proxy", 1);
+app.use(requestLogger);
 
 app.get("/health", (req, res) => {
     res.json({
@@ -33,7 +36,8 @@ app.get("/health/deep", (req, res) => {
         supabase_url: Boolean(process.env.SUPABASE_URL),
         supabase_anon_key: Boolean(process.env.SUPABASE_ANON_KEY),
         supabase_service_role_key: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
-        spoonacular_api_key: Boolean(process.env.SPOONACULAR_API_KEY)
+        spoonacular_api_key: Boolean(process.env.SPOONACULAR_API_KEY),
+        password_reset_redirect_url: Boolean(process.env.PASSWORD_RESET_REDIRECT_URL)
     };
     const ok = Object.values(checks).every(Boolean);
 
@@ -71,5 +75,9 @@ app.use("/me/water-logs", waterLogsRouter);
 app.use("/me/weight-logs", weightLogsRouter);
 
 app.listen(port, host, () => {
-    console.log(`Food API proxy running on ${host}:${port}`);
+    logInfo("server_started", {
+        host,
+        port,
+        service: "the-new-calories-tracker-food-api"
+    });
 });
