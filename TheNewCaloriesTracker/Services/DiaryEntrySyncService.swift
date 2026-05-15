@@ -6,17 +6,33 @@ final class DiaryEntrySyncService {
     static let shared = DiaryEntrySyncService()
 
     private let backend: BackendSyncService
+    private let deletionStore: PendingDeletionStore
 
     private convenience init() {
-        self.init(backend: .shared)
+        self.init(backend: .shared, deletionStore: .shared)
     }
 
-    private init(backend: BackendSyncService) {
+    private init(
+        backend: BackendSyncService,
+        deletionStore: PendingDeletionStore
+    ) {
         self.backend = backend
+        self.deletionStore = deletionStore
     }
 
     func syncAll(for userID: String, context: ModelContext, accessToken: String) async throws {
-        let remoteEntries = try await backend.fetchDiaryEntries(accessToken: accessToken)
+        var pendingDeleteError: Error?
+        do {
+            try await flushPendingDeletions(for: userID, accessToken: accessToken)
+        } catch {
+            pendingDeleteError = error
+        }
+
+        let pendingDeleteIDs = deletionStore.remoteIDs(kind: .diaryEntry, userID: userID)
+        let fetchedRemoteEntries = try await backend.fetchDiaryEntries(accessToken: accessToken)
+        let remoteEntries = fetchedRemoteEntries.filter {
+            !pendingDeleteIDs.contains($0.id)
+        }
         var pendingPushError: Error?
         do {
             try await pushDirtyEntries(
@@ -31,13 +47,21 @@ final class DiaryEntrySyncService {
 
         try await pullRemoteEntries(for: userID, context: context, accessToken: accessToken)
 
+        if let pendingDeleteError {
+            throw pendingDeleteError
+        }
+
         if let pendingPushError {
             throw pendingPushError
         }
     }
 
     func pullRemoteEntries(for userID: String, context: ModelContext, accessToken: String) async throws {
-        let remoteEntries = try await backend.fetchDiaryEntries(accessToken: accessToken)
+        let pendingDeleteIDs = deletionStore.remoteIDs(kind: .diaryEntry, userID: userID)
+        let fetchedRemoteEntries = try await backend.fetchDiaryEntries(accessToken: accessToken)
+        let remoteEntries = fetchedRemoteEntries.filter {
+            !pendingDeleteIDs.contains($0.id)
+        }
         let remoteIDs = Set(remoteEntries.map(\.id))
         let localEntries = try context.fetch(FetchDescriptor<DiaryEntryModel>()).filter {
             $0.userID == userID
@@ -220,11 +244,35 @@ final class DiaryEntrySyncService {
         try ensureEntry(entry, belongsTo: userID)
 
         if let accessToken, let remoteID = entry.remoteID {
-            try await backend.deleteDiaryEntry(id: remoteID, accessToken: accessToken)
+            do {
+                try await backend.deleteDiaryEntry(id: remoteID, accessToken: accessToken)
+            } catch {
+                deletionStore.enqueue(kind: .diaryEntry, remoteID: remoteID, userID: userID)
+            }
+        } else if let remoteID = entry.remoteID {
+            deletionStore.enqueue(kind: .diaryEntry, remoteID: remoteID, userID: userID)
         }
 
         context.delete(entry)
         try context.save()
+    }
+
+    private func flushPendingDeletions(for userID: String, accessToken: String) async throws {
+        let remoteIDs = deletionStore.remoteIDs(kind: .diaryEntry, userID: userID)
+        var firstError: Error?
+
+        for remoteID in remoteIDs {
+            do {
+                try await backend.deleteDiaryEntry(id: remoteID, accessToken: accessToken)
+                deletionStore.remove(kind: .diaryEntry, remoteID: remoteID, userID: userID)
+            } catch {
+                firstError = firstError ?? error
+            }
+        }
+
+        if let firstError {
+            throw firstError
+        }
     }
 
     private func apply(

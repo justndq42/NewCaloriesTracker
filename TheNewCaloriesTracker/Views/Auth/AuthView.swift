@@ -7,6 +7,8 @@ struct AuthView: View {
     @State private var displayName = ""
     @State private var email = ""
     @State private var password = ""
+    @State private var isShowingPasswordReset = false
+    @State private var resetNoticeMessage: String?
 
     private var canSubmit: Bool {
         let hasCredentials = email.trimmingCharacters(in: .whitespacesAndNewlines).contains("@")
@@ -48,8 +50,24 @@ struct AuthView: View {
                         AuthSecureInput(password: $password)
                     }
 
+                    if mode == .login {
+                        Button {
+                            isShowingPasswordReset = true
+                        } label: {
+                            Text("Quên mật khẩu?")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(AppTheme.ColorToken.primary)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     if let errorMessage = authStore.errorMessage {
                         AuthMessageView(message: errorMessage)
+                    }
+
+                    if let resetNoticeMessage {
+                        AuthSuccessMessageView(message: resetNoticeMessage)
                     }
 
                     Button {
@@ -82,6 +100,15 @@ struct AuthView: View {
             .padding(.bottom, 32)
         }
         .appScreenBackground()
+        .sheet(isPresented: $isShowingPasswordReset) {
+            PasswordResetSheet(initialEmail: email) { message in
+                resetNoticeMessage = message
+            }
+            .environment(authStore)
+        }
+        .onChange(of: mode) {
+            resetNoticeMessage = nil
+        }
     }
 
     private func submit() async {
@@ -287,6 +314,116 @@ private struct AuthMessageView: View {
         .padding(12)
         .background(AppTheme.ColorToken.calories.opacity(0.10))
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.compactCard, style: .continuous))
+    }
+}
+
+private struct AuthSuccessMessageView: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(AppTheme.ColorToken.protein)
+
+            Text(message)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(AppTheme.ColorToken.protein)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .background(AppTheme.ColorToken.protein.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.compactCard, style: .continuous))
+    }
+}
+
+private struct PasswordResetSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(AuthSessionStore.self) private var authStore
+
+    @State private var email: String
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
+
+    let onComplete: (String) -> Void
+
+    private var canSubmit: Bool {
+        email.trimmingCharacters(in: .whitespacesAndNewlines).contains("@") && !isSubmitting
+    }
+
+    init(initialEmail: String, onComplete: @escaping (String) -> Void) {
+        _email = State(initialValue: initialEmail.trimmingCharacters(in: .whitespacesAndNewlines))
+        self.onComplete = onComplete
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 18) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Đặt lại mật khẩu")
+                        .font(.largeTitle.bold())
+                    Text("Nhập email tài khoản. Nếu email tồn tại, hệ thống sẽ gửi hướng dẫn đặt lại mật khẩu.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                AuthTextField(
+                    title: "Email",
+                    icon: "envelope.fill",
+                    text: $email,
+                    keyboardType: .emailAddress,
+                    textContentType: .emailAddress
+                )
+
+                if let errorMessage {
+                    AuthMessageView(message: errorMessage)
+                }
+
+                Button {
+                    Task { await submit() }
+                } label: {
+                    HStack(spacing: 10) {
+                        if isSubmitting {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Image(systemName: "paperplane.fill")
+                        }
+
+                        Text("Gửi email")
+                    }
+                    .appPrimaryButtonStyle(radius: AppTheme.Radius.pill)
+                }
+                .disabled(!canSubmit)
+                .opacity(canSubmit ? 1 : 0.45)
+
+                Spacer()
+            }
+            .padding(AppTheme.Spacing.screen)
+            .appScreenBackground()
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Đóng") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func submit() async {
+        isSubmitting = true
+        errorMessage = nil
+
+        do {
+            try await authStore.requestPasswordReset(
+                email: email.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+            onComplete("Nếu email tồn tại, hướng dẫn đặt lại mật khẩu đã được gửi.")
+            dismiss()
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? "Chưa gửi được email. Vui lòng thử lại."
+        }
+
+        isSubmitting = false
     }
 }
 

@@ -8,5 +8,7 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 22
+      - key: PASSWORD_RESET_REDIRECT_URL
+        value: narutocalories://password-reset
       - key: SPOONACULAR_API_KEY
         sync: false

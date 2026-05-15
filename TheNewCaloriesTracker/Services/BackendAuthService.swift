@@ -86,6 +86,40 @@ final class BackendAuthService {
         }
     }
 
+    private struct PasswordResetRequest: Encodable {
+        let email: String
+    }
+
+    private struct ChangePasswordRequest: Encodable {
+        let currentPassword: String
+        let newPassword: String
+
+        private enum CodingKeys: String, CodingKey {
+            case currentPassword = "current_password"
+            case newPassword = "new_password"
+        }
+    }
+
+    private struct CompletePasswordResetRequest: Encodable {
+        let accessToken: String?
+        let code: String?
+        let newPassword: String
+
+        private enum CodingKeys: String, CodingKey {
+            case accessToken = "access_token"
+            case code
+            case newPassword = "new_password"
+        }
+    }
+
+    private struct DeleteAccountRequest: Encodable {
+        let password: String
+    }
+
+    private struct StatusResponse: Decodable {
+        let ok: Bool
+    }
+
     private let session: URLSession
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
@@ -118,14 +152,82 @@ final class BackendAuthService {
         )
     }
 
+    func requestPasswordReset(email: String) async throws {
+        let _: StatusResponse = try await sendRequest(
+            path: "auth/password-reset",
+            method: "POST",
+            payload: PasswordResetRequest(email: email),
+            accessToken: nil
+        )
+    }
+
+    func completePasswordReset(
+        accessToken: String?,
+        code: String?,
+        newPassword: String
+    ) async throws {
+        let _: StatusResponse = try await sendRequest(
+            path: "auth/password-reset/complete",
+            method: "POST",
+            payload: CompletePasswordResetRequest(
+                accessToken: accessToken,
+                code: code,
+                newPassword: newPassword
+            ),
+            accessToken: nil
+        )
+    }
+
+    func changePassword(
+        currentPassword: String,
+        newPassword: String,
+        accessToken: String
+    ) async throws {
+        let _: StatusResponse = try await sendRequest(
+            path: "auth/change-password",
+            method: "POST",
+            payload: ChangePasswordRequest(
+                currentPassword: currentPassword,
+                newPassword: newPassword
+            ),
+            accessToken: accessToken
+        )
+    }
+
+    func deleteAccount(password: String, accessToken: String) async throws {
+        let _: StatusResponse = try await sendRequest(
+            path: "auth/account",
+            method: "DELETE",
+            payload: DeleteAccountRequest(password: password),
+            accessToken: accessToken
+        )
+    }
+
     private func send<T: Encodable>(
         path: String,
         payload: T
     ) async throws -> AuthResponse {
+        try await sendRequest(
+            path: path,
+            method: "POST",
+            payload: payload,
+            accessToken: nil
+        )
+    }
+
+    private func sendRequest<RequestPayload: Encodable, ResponsePayload: Decodable>(
+        path: String,
+        method: String,
+        payload: RequestPayload,
+        accessToken: String?
+    ) async throws -> ResponsePayload {
         var request = URLRequest(url: url(for: path))
-        request.httpMethod = "POST"
+        request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let accessToken {
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        }
         request.httpBody = try encoder.encode(payload)
 
         let (data, response) = try await session.data(for: request)
@@ -135,7 +237,7 @@ final class BackendAuthService {
         }
 
         if 200..<300 ~= httpResponse.statusCode {
-            return try decoder.decode(AuthResponse.self, from: data)
+            return try decoder.decode(ResponsePayload.self, from: data)
         }
 
         if let backendError = BackendAPIError.decode(from: data, statusCode: httpResponse.statusCode) {

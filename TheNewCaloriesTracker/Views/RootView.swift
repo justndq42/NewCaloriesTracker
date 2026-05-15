@@ -11,6 +11,7 @@ struct RootView: View {
     @State private var syncCoordinator = AppSyncCoordinator()
     @State private var isRestoringProfile = false
     @State private var restoredUserID: String?
+    @State private var passwordResetDeepLink: PasswordResetDeepLink?
 
     private var currentProfile: UserProfileModel? {
         guard let userID = authStore.user?.id else {
@@ -67,6 +68,18 @@ struct RootView: View {
             Task {
                 await syncCurrentUserIfNeeded(trigger: .networkRestored)
             }
+        }
+        .onOpenURL { url in
+            guard let deepLink = PasswordResetDeepLink.parse(url) else {
+                return
+            }
+
+            authStore.signOut()
+            passwordResetDeepLink = deepLink
+        }
+        .sheet(item: $passwordResetDeepLink) { deepLink in
+            PasswordResetCompletionSheet(deepLink: deepLink)
+                .environment(authStore)
         }
     }
 

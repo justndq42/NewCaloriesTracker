@@ -70,6 +70,40 @@ final class AuthSessionStore {
         }
     }
 
+    func requestPasswordReset(email: String) async throws {
+        try await authService.requestPasswordReset(email: email)
+    }
+
+    func completePasswordReset(accessToken: String?, code: String?, newPassword: String) async throws {
+        try await authService.completePasswordReset(
+            accessToken: accessToken,
+            code: code,
+            newPassword: newPassword
+        )
+        signOut()
+    }
+
+    func changePassword(currentPassword: String, newPassword: String) async throws {
+        guard let accessToken = await accessToken() else {
+            throw BackendAuthError.server("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.")
+        }
+
+        try await authService.changePassword(
+            currentPassword: currentPassword,
+            newPassword: newPassword,
+            accessToken: accessToken
+        )
+    }
+
+    func deleteAccount(password: String) async throws {
+        guard let accessToken = await accessToken() else {
+            throw BackendAuthError.server("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.")
+        }
+
+        try await authService.deleteAccount(password: password, accessToken: accessToken)
+        signOut()
+    }
+
     func refreshIfNeeded() async {
         guard let session, session.shouldRefresh else {
             return

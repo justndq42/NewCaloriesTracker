@@ -1,5 +1,6 @@
 import express from "express";
-import { supabaseAuth } from "../services/supabaseClient.js";
+import { requireAuth } from "../middleware/requireAuth.js";
+import { supabaseAdmin, supabaseAuth } from "../services/supabaseClient.js";
 import {
     cleanString,
     handleRouteError,
@@ -70,6 +71,93 @@ router.post("/refresh", async (req, res) => {
     }
 });
 
+router.post("/password-reset", async (req, res) => {
+    try {
+        const email = requiredEmail(req.body.email);
+        const options = passwordResetRedirectURL()
+            ? { redirectTo: passwordResetRedirectURL() }
+            : undefined;
+
+        const { error } = await supabaseAuth.auth.resetPasswordForEmail(email, options);
+
+        if (error) {
+            return sendAuthError(res, error, 400);
+        }
+
+        return res.json({ ok: true });
+    } catch (error) {
+        return handleRouteError(res, error, "Password reset request failed");
+    }
+});
+
+router.post("/password-reset/complete", async (req, res) => {
+    try {
+        const newPassword = requiredPassword(req.body.new_password);
+        const resetIdentity = await resolvePasswordResetIdentity(req.body);
+
+        if (!resetIdentity?.id) {
+            return passwordResetLinkErrorResponse(res);
+        }
+
+        const { error } = await supabaseAdmin.auth.admin.updateUserById(resetIdentity.id, {
+            password: newPassword
+        });
+
+        if (error) {
+            return sendAuthError(res, error, 400);
+        }
+
+        return res.json({ ok: true });
+    } catch (error) {
+        return handleRouteError(res, error, "Password reset completion failed");
+    }
+});
+
+router.post("/change-password", requireAuth, async (req, res) => {
+    try {
+        const currentPassword = requiredString(req.body.current_password, "current_password");
+        const newPassword = requiredPassword(req.body.new_password);
+
+        const passwordError = await verifyCurrentPassword(req.user.email, currentPassword);
+        if (passwordError) {
+            return passwordErrorResponse(res);
+        }
+
+        const { error } = await supabaseAdmin.auth.admin.updateUserById(req.user.id, {
+            password: newPassword
+        });
+
+        if (error) {
+            return sendAuthError(res, error, 400);
+        }
+
+        return res.json({ ok: true });
+    } catch (error) {
+        return handleRouteError(res, error, "Password change failed");
+    }
+});
+
+router.delete("/account", requireAuth, async (req, res) => {
+    try {
+        const password = requiredString(req.body.password, "password");
+
+        const passwordError = await verifyCurrentPassword(req.user.email, password);
+        if (passwordError) {
+            return passwordErrorResponse(res);
+        }
+
+        const { error } = await supabaseAdmin.auth.admin.deleteUser(req.user.id);
+
+        if (error) {
+            return sendAuthError(res, error, 400);
+        }
+
+        return res.json({ ok: true });
+    } catch (error) {
+        return handleRouteError(res, error, "Account delete failed");
+    }
+});
+
 function requiredEmail(value) {
     const email = requiredString(value, "email").toLowerCase();
 
@@ -88,6 +176,66 @@ function requiredPassword(value) {
     }
 
     return password;
+}
+
+function passwordResetRedirectURL() {
+    return cleanString(process.env.PASSWORD_RESET_REDIRECT_URL);
+}
+
+async function resolvePasswordResetIdentity(body) {
+    const accessToken = cleanString(body.access_token);
+    const code = cleanString(body.code);
+
+    if (accessToken) {
+        const { data, error } = await supabaseAuth.auth.getUser(accessToken);
+        if (error) {
+            return null;
+        }
+
+        return data.user;
+    }
+
+    if (code) {
+        const { data, error } = await supabaseAuth.auth.exchangeCodeForSession(code);
+        if (error) {
+            return null;
+        }
+
+        return data.user;
+    }
+
+    return null;
+}
+
+async function verifyCurrentPassword(email, password) {
+    if (!email) {
+        return new Error("Missing account email");
+    }
+
+    const { error } = await supabaseAuth.auth.signInWithPassword({
+        email,
+        password
+    });
+
+    return error;
+}
+
+function passwordErrorResponse(res) {
+    return sendAPIError(
+        res,
+        401,
+        "auth_invalid_password",
+        "Mật khẩu hiện tại không chính xác."
+    );
+}
+
+function passwordResetLinkErrorResponse(res) {
+    return sendAPIError(
+        res,
+        401,
+        "auth_invalid_reset_link",
+        "Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn."
+    );
 }
 
 function toAuthResponse(data) {

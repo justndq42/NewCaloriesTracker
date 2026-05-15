@@ -6,17 +6,33 @@ final class CustomFoodSyncService {
     static let shared = CustomFoodSyncService()
 
     private let backend: BackendSyncService
+    private let deletionStore: PendingDeletionStore
 
     private convenience init() {
-        self.init(backend: .shared)
+        self.init(backend: .shared, deletionStore: .shared)
     }
 
-    private init(backend: BackendSyncService) {
+    private init(
+        backend: BackendSyncService,
+        deletionStore: PendingDeletionStore
+    ) {
         self.backend = backend
+        self.deletionStore = deletionStore
     }
 
     func syncAll(for userID: String, context: ModelContext, accessToken: String) async throws {
-        let remoteFoods = try await backend.fetchCustomFoods(accessToken: accessToken)
+        var pendingDeleteError: Error?
+        do {
+            try await flushPendingDeletions(for: userID, accessToken: accessToken)
+        } catch {
+            pendingDeleteError = error
+        }
+
+        let pendingDeleteIDs = deletionStore.remoteIDs(kind: .customFood, userID: userID)
+        let fetchedRemoteFoods = try await backend.fetchCustomFoods(accessToken: accessToken)
+        let remoteFoods = fetchedRemoteFoods.filter {
+            !pendingDeleteIDs.contains($0.id)
+        }
         let remoteByID = Dictionary(uniqueKeysWithValues: remoteFoods.map { ($0.id, $0) })
         let remoteByClientID = Dictionary(
             uniqueKeysWithValues: remoteFoods.compactMap { remoteFood in
@@ -56,6 +72,10 @@ final class CustomFoodSyncService {
         try context.save()
         try await pullRemoteFoods(for: userID, context: context, accessToken: accessToken)
 
+        if let pendingDeleteError {
+            throw pendingDeleteError
+        }
+
         if let pendingPushError {
             throw pendingPushError
         }
@@ -91,15 +111,43 @@ final class CustomFoodSyncService {
         try ensureFood(food, belongsTo: userID)
 
         if let accessToken, let remoteID = food.remoteID {
-            try await backend.deleteCustomFood(id: remoteID, accessToken: accessToken)
+            do {
+                try await backend.deleteCustomFood(id: remoteID, accessToken: accessToken)
+            } catch {
+                deletionStore.enqueue(kind: .customFood, remoteID: remoteID, userID: userID)
+            }
+        } else if let remoteID = food.remoteID {
+            deletionStore.enqueue(kind: .customFood, remoteID: remoteID, userID: userID)
         }
 
         context.delete(food)
         try context.save()
     }
 
+    private func flushPendingDeletions(for userID: String, accessToken: String) async throws {
+        let remoteIDs = deletionStore.remoteIDs(kind: .customFood, userID: userID)
+        var firstError: Error?
+
+        for remoteID in remoteIDs {
+            do {
+                try await backend.deleteCustomFood(id: remoteID, accessToken: accessToken)
+                deletionStore.remove(kind: .customFood, remoteID: remoteID, userID: userID)
+            } catch {
+                firstError = firstError ?? error
+            }
+        }
+
+        if let firstError {
+            throw firstError
+        }
+    }
+
     private func pullRemoteFoods(for userID: String, context: ModelContext, accessToken: String) async throws {
-        let remoteFoods = try await backend.fetchCustomFoods(accessToken: accessToken)
+        let pendingDeleteIDs = deletionStore.remoteIDs(kind: .customFood, userID: userID)
+        let fetchedRemoteFoods = try await backend.fetchCustomFoods(accessToken: accessToken)
+        let remoteFoods = fetchedRemoteFoods.filter {
+            !pendingDeleteIDs.contains($0.id)
+        }
         let remoteIDs = Set(remoteFoods.map(\.id))
         let localFoods = try context.fetch(FetchDescriptor<CustomFoodModel>()).filter {
             $0.userID == userID

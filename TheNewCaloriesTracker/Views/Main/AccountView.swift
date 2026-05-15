@@ -2,9 +2,13 @@ import SwiftUI
 import SwiftData
 
 struct AccountView: View {
+    @Environment(\.modelContext) private var context
     @Environment(AuthSessionStore.self) private var authStore
 
     let profile: UserProfileModel
+    @State private var isShowingChangePassword = false
+    @State private var isShowingDeleteAccount = false
+    @State private var securityMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -32,6 +36,13 @@ struct AccountView: View {
                     .buttonStyle(.plain)
 
                     AccountNutritionGoalSection(profile: profile)
+
+                    AccountSecuritySection(
+                        message: securityMessage,
+                        onChangePassword: { isShowingChangePassword = true },
+                        onDeleteAccount: { isShowingDeleteAccount = true }
+                    )
+
                     SignOutButton {
                         authStore.signOut()
                     }
@@ -41,7 +52,133 @@ struct AccountView: View {
             }
             .appScreenBackground()
             .navigationTitle("Tài khoản")
+            .sheet(isPresented: $isShowingChangePassword) {
+                ChangePasswordSheet { message in
+                    securityMessage = message
+                }
+                .environment(authStore)
+            }
+            .sheet(isPresented: $isShowingDeleteAccount) {
+                DeleteAccountSheet {
+                    deleteLocalAccountData()
+                }
+                .environment(authStore)
+            }
         }
+    }
+
+    private func deleteLocalAccountData() {
+        guard let userID = profile.userID else {
+            return
+        }
+
+        if let entries = try? context.fetch(FetchDescriptor<DiaryEntryModel>()) {
+            entries
+                .filter { $0.userID == userID }
+                .forEach(context.delete)
+        }
+
+        if let foods = try? context.fetch(FetchDescriptor<CustomFoodModel>()) {
+            foods
+                .filter { $0.userID == userID }
+                .forEach(context.delete)
+        }
+
+        context.delete(profile)
+        try? context.save()
+    }
+}
+
+private struct AccountSecuritySection: View {
+    let message: String?
+    let onChangePassword: () -> Void
+    let onDeleteAccount: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Bảo mật tài khoản")
+                .font(.headline.bold())
+
+            if let message {
+                AccountSecurityMessage(message: message)
+            }
+
+            AccountSecurityActionRow(
+                title: "Đổi mật khẩu",
+                subtitle: "Cập nhật mật khẩu đăng nhập",
+                systemImage: "key.fill",
+                tint: AppTheme.ColorToken.primary,
+                action: onChangePassword
+            )
+
+            AccountSecurityActionRow(
+                title: "Xoá tài khoản",
+                subtitle: "Xoá tài khoản và dữ liệu đã đồng bộ",
+                systemImage: "trash.fill",
+                tint: AppTheme.ColorToken.calories,
+                action: onDeleteAccount
+            )
+        }
+        .padding(16)
+        .appCard(radius: AppTheme.Radius.card, shadow: true)
+    }
+}
+
+private struct AccountSecurityMessage: View {
+    let message: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(AppTheme.ColorToken.protein)
+            Text(message)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(AppTheme.ColorToken.protein)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(AppTheme.ColorToken.protein.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.compactCard, style: .continuous))
+    }
+}
+
+private struct AccountSecurityActionRow: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: systemImage)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(tint)
+                    .frame(width: 34, height: 34)
+                    .background(tint.opacity(0.12))
+                    .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.primary)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .background(AppTheme.ColorToken.mutedFill)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.compactCard, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -62,6 +199,243 @@ private struct SignOutButton: View {
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.compactCard, style: .continuous))
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct ChangePasswordSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(AuthSessionStore.self) private var authStore
+
+    @State private var currentPassword = ""
+    @State private var newPassword = ""
+    @State private var confirmPassword = ""
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
+
+    let onComplete: (String) -> Void
+
+    private var canSubmit: Bool {
+        !currentPassword.isEmpty
+            && newPassword.count >= 6
+            && newPassword == confirmPassword
+            && !isSubmitting
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                AccountSheetHeader(
+                    title: "Đổi mật khẩu",
+                    subtitle: "Nhập mật khẩu hiện tại để xác nhận thay đổi."
+                )
+
+                VStack(spacing: 12) {
+                    AccountPasswordField(title: "Mật khẩu hiện tại", text: $currentPassword)
+                    AccountPasswordField(title: "Mật khẩu mới", text: $newPassword)
+                    AccountPasswordField(title: "Nhập lại mật khẩu mới", text: $confirmPassword)
+                }
+
+                if let validationMessage {
+                    AccountInlineError(message: validationMessage)
+                } else if let errorMessage {
+                    AccountInlineError(message: errorMessage)
+                }
+
+                Button {
+                    Task { await submit() }
+                } label: {
+                    HStack(spacing: 10) {
+                        if isSubmitting {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Image(systemName: "checkmark.circle.fill")
+                        }
+
+                        Text("Cập nhật mật khẩu")
+                    }
+                    .appPrimaryButtonStyle(radius: AppTheme.Radius.pill)
+                }
+                .disabled(!canSubmit)
+                .opacity(canSubmit ? 1 : 0.45)
+
+                Spacer()
+            }
+            .padding(AppTheme.Spacing.screen)
+            .appScreenBackground()
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Đóng") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private var validationMessage: String? {
+        guard !newPassword.isEmpty || !confirmPassword.isEmpty else {
+            return nil
+        }
+
+        if newPassword.count < 6 {
+            return "Mật khẩu mới cần ít nhất 6 ký tự."
+        }
+
+        if newPassword != confirmPassword {
+            return "Mật khẩu nhập lại chưa khớp."
+        }
+
+        return nil
+    }
+
+    private func submit() async {
+        isSubmitting = true
+        errorMessage = nil
+
+        do {
+            try await authStore.changePassword(
+                currentPassword: currentPassword,
+                newPassword: newPassword
+            )
+            onComplete("Mật khẩu đã được cập nhật.")
+            dismiss()
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? "Chưa đổi được mật khẩu. Vui lòng thử lại."
+        }
+
+        isSubmitting = false
+    }
+}
+
+private struct DeleteAccountSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(AuthSessionStore.self) private var authStore
+
+    @State private var password = ""
+    @State private var isDeleting = false
+    @State private var errorMessage: String?
+
+    let onDeleted: () -> Void
+
+    private var canDelete: Bool {
+        !password.isEmpty && !isDeleting
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                AccountSheetHeader(
+                    title: "Xoá tài khoản",
+                    subtitle: "Dữ liệu đã đồng bộ của tài khoản sẽ bị xoá. Hành động này không thể hoàn tác."
+                )
+
+                AccountPasswordField(title: "Nhập mật khẩu để xác nhận", text: $password)
+
+                if let errorMessage {
+                    AccountInlineError(message: errorMessage)
+                }
+
+                Button(role: .destructive) {
+                    Task { await deleteAccount() }
+                } label: {
+                    HStack(spacing: 10) {
+                        if isDeleting {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Image(systemName: "trash.fill")
+                        }
+
+                        Text("Xoá tài khoản")
+                    }
+                    .font(.headline.bold())
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(AppTheme.ColorToken.calories)
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.pill, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(!canDelete)
+                .opacity(canDelete ? 1 : 0.45)
+
+                Spacer()
+            }
+            .padding(AppTheme.Spacing.screen)
+            .appScreenBackground()
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Đóng") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func deleteAccount() async {
+        isDeleting = true
+        errorMessage = nil
+
+        do {
+            try await authStore.deleteAccount(password: password)
+            onDeleted()
+            dismiss()
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? "Chưa xoá được tài khoản. Vui lòng thử lại."
+        }
+
+        isDeleting = false
+    }
+}
+
+private struct AccountSheetHeader: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.largeTitle.bold())
+            Text(subtitle)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct AccountPasswordField: View {
+    let title: String
+    @Binding var text: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            AppIconBadge(systemName: "key.fill", color: AppTheme.ColorToken.primary, size: 34)
+
+            SecureField(title, text: $text)
+                .textContentType(.password)
+                .font(.headline)
+        }
+        .padding(14)
+        .background(AppTheme.ColorToken.mutedFill)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.compactCard, style: .continuous))
+    }
+}
+
+private struct AccountInlineError: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(AppTheme.ColorToken.calories)
+
+            Text(message)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(AppTheme.ColorToken.calories)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .background(AppTheme.ColorToken.calories.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.compactCard, style: .continuous))
     }
 }
 
